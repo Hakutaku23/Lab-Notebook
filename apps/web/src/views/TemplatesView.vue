@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 
 import {
@@ -150,7 +150,7 @@ async function saveTemplate() {
     await loadTemplate(savedId);
   } catch (err) {
     console.error(err);
-    error.value = "模板保存失败。请检查 JSON 结构、模板 key 是否重复，或是否试图修改系统模板。";
+    error.value = "模板保存失败，请检查 JSON 结构、模板 key 是否重复，或是否在修改受保护模板。";
   } finally {
     saving.value = false;
   }
@@ -158,7 +158,7 @@ async function saveTemplate() {
 
 async function removeTemplate() {
   if (!form.id) return;
-  const confirmed = window.confirm("确认删除该模板？");
+  const confirmed = window.confirm("确认删除该模板吗？");
   if (!confirmed) return;
 
   try {
@@ -177,90 +177,100 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page" style="grid-template-columns: 320px 1fr;">
-    <section class="card">
-      <div class="row-between">
-        <h2>模板列表</h2>
-        <button class="button secondary" @click="resetForm">新建</button>
-      </div>
-
-      <p v-if="loading" class="muted">正在加载模板...</p>
-
-      <div class="stack">
-        <article
-          v-for="item in templates"
-          :key="item.id"
-          class="sub-card"
-          style="cursor:pointer;"
-          @click="loadTemplate(item.id)"
-        >
-          <h3>{{ item.name }}</h3>
-          <p class="muted">{{ item.key }}</p>
-          <p class="muted">{{ item.category }} / v{{ item.version }}</p>
-          <p class="muted">{{ item.is_system ? "系统模板" : "自定义模板" }}</p>
-        </article>
+  <div class="page">
+    <section class="page-hero">
+      <div>
+        <p class="eyebrow">Templates</p>
+        <h2>模板中心</h2>
+        <p class="muted">当前版本先保留 JSON 编辑能力，便于快速调整字段结构与模板版本。</p>
       </div>
     </section>
 
-    <section class="card">
-      <div class="row-between">
-        <h2>{{ form.id ? "编辑模板" : "新建模板" }}</h2>
-        <div class="actions">
-          <button class="button secondary" @click="duplicateCurrent" :disabled="!selected">
-            复制当前
-          </button>
-          <button class="button" :disabled="saving || !form.name || !form.key" @click="saveTemplate">
-            {{ saving ? "保存中..." : "保存模板" }}
-          </button>
-          <button class="button danger" :disabled="!form.id" @click="removeTemplate">删除</button>
+    <section class="template-layout">
+      <div class="card">
+        <div class="row-between">
+          <h3>模板列表</h3>
+          <button class="button secondary" @click="resetForm">新建</button>
+        </div>
+
+        <p v-if="loading" class="muted">正在加载模板...</p>
+
+        <div class="stack">
+          <article
+            v-for="item in templates"
+            :key="item.id"
+            class="sub-card"
+            style="cursor: pointer;"
+            @click="loadTemplate(item.id)"
+          >
+            <h3>{{ item.name }}</h3>
+            <p class="muted">{{ item.key }}</p>
+            <p class="muted">{{ item.category }} / v{{ item.version }}</p>
+            <p class="muted">{{ item.is_system ? "系统模板" : "自定义模板" }}</p>
+          </article>
         </div>
       </div>
 
-      <p class="muted">第一版模板管理采用 JSON 结构编辑。系统模板建议先复制后再改。</p>
+      <section class="card">
+        <div class="row-between">
+          <h3>{{ form.id ? "编辑模板" : "新建模板" }}</h3>
+          <div class="actions">
+            <button class="button secondary" @click="duplicateCurrent" :disabled="!selected">
+              复制当前模板
+            </button>
+            <button class="button" :disabled="saving || !form.name || !form.key" @click="saveTemplate">
+              {{ saving ? "保存中..." : "保存模板" }}
+            </button>
+            <button class="button danger" :disabled="!form.id" @click="removeTemplate">删除</button>
+          </div>
+        </div>
 
-      <div class="form-item">
-        <label class="label">模板名称</label>
-        <input v-model="form.name" class="input" type="text" />
-      </div>
+        <p class="muted">这一版模板管理仍以 JSON 结构编辑为主，推荐先从现有模板复制再调整。</p>
 
-      <div class="form-item">
-        <label class="label">模板 key</label>
-        <input v-model="form.key" class="input" type="text" />
-      </div>
+        <div class="form-item">
+          <label class="label">模板名称</label>
+          <input v-model="form.name" class="input" type="text" />
+        </div>
 
-      <div class="form-item">
-        <label class="label">分类</label>
-        <input v-model="form.category" class="input" type="text" />
-      </div>
+        <div class="form-item">
+          <label class="label">模板 key</label>
+          <input v-model="form.key" class="input" type="text" />
+        </div>
 
-      <div class="form-item">
-        <label class="label">父模板 ID</label>
-        <input v-model="form.parent_template_id" class="input" type="text" placeholder="可留空" />
-      </div>
+        <div class="form-item">
+          <label class="label">分类</label>
+          <input v-model="form.category" class="input" type="text" />
+        </div>
 
-      <div class="form-item">
-        <label class="label">创建人 ID（仅新建时可选）</label>
-        <input v-model="form.created_by" class="input" type="text" placeholder="可留空" />
-      </div>
+        <div class="form-item">
+          <label class="label">父模板 ID</label>
+          <input v-model="form.parent_template_id" class="input" type="text" placeholder="可留空" />
+        </div>
 
-      <div class="form-item">
-        <label class="label">描述</label>
-        <textarea v-model="form.description" class="textarea" rows="3" />
-      </div>
+        <div class="form-item">
+          <label class="label">创建者 ID（仅新建时可选）</label>
+          <input v-model="form.created_by" class="input" type="text" placeholder="可留空" />
+        </div>
 
-      <div class="form-item">
-        <label class="label">
-          <input v-model="form.is_active" type="checkbox" />
-          启用
-        </label>
-      </div>
+        <div class="form-item">
+          <label class="label">描述</label>
+          <textarea v-model="form.description" class="textarea" rows="3" />
+        </div>
 
-      <div class="form-item">
-        <label class="label">sections JSON</label>
-        <textarea v-model="sectionsText" class="textarea" rows="24" />
-      </div>
+        <div class="form-item">
+          <label class="label">
+            <input v-model="form.is_active" type="checkbox" />
+            启用
+          </label>
+        </div>
 
-      <p v-if="error" class="error-text">{{ error }}</p>
+        <div class="form-item">
+          <label class="label">Sections JSON</label>
+          <textarea v-model="sectionsText" class="textarea" rows="24" />
+        </div>
+
+        <p v-if="error" class="error-text">{{ error }}</p>
+      </section>
     </section>
   </div>
 </template>

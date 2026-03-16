@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { onMounted, ref } from "vue";
 
 import {
@@ -69,7 +69,7 @@ async function onFileChange(event: Event) {
 }
 
 async function removeAttachment(id: string) {
-  const confirmed = window.confirm("确认删除该附件？");
+  const confirmed = window.confirm("确认删除这个附件吗？");
   if (!confirmed) return;
 
   try {
@@ -87,16 +87,21 @@ onMounted(loadAttachments);
 
 <template>
   <section class="card">
-    <h3>附件管理</h3>
-
-    <div class="form-item">
-      <label class="label">附件说明</label>
-      <input v-model="description" class="input" type="text" placeholder="可选" />
+    <div class="section-header">
+      <div>
+        <h3>附件管理</h3>
+        <p class="muted">支持上传实验图片、原始数据和补充文档。</p>
+      </div>
     </div>
 
     <div class="form-item">
-      <label class="label">上传人 ID（可选）</label>
-      <input v-model="uploadedBy" class="input" type="text" placeholder="可留空" />
+      <label class="label">附件说明</label>
+      <input v-model="description" class="input" type="text" placeholder="可选，便于团队理解附件用途" />
+    </div>
+
+    <div class="form-item">
+      <label class="label">上传者 ID（可选）</label>
+      <input v-model="uploadedBy" class="input" type="text" placeholder="默认使用当前登录用户" />
     </div>
 
     <div class="form-item">
@@ -108,7 +113,7 @@ onMounted(loadAttachments);
     <p v-if="loading" class="muted">正在加载附件...</p>
     <p v-if="uploading" class="muted">正在上传附件...</p>
 
-    <div v-if="attachments.length === 0" class="muted">暂无附件。</div>
+    <div v-if="attachments.length === 0" class="empty-state">暂无附件。</div>
 
     <div v-else class="stack">
       <article v-for="item in attachments" :key="item.id" class="sub-card">
@@ -116,7 +121,7 @@ onMounted(loadAttachments);
           <div>
             <h4>{{ item.original_name }}</h4>
             <p class="muted">大小：{{ humanSize(item.size_bytes) }}</p>
-            <p class="muted">描述：{{ item.description || "—" }}</p>
+            <p class="muted">说明：{{ item.description || "无" }}</p>
           </div>
 
           <div class="actions">

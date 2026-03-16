@@ -7,8 +7,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.attachment import Attachment
-from app.models.record import ExperimentRecord, RecordFieldValue
+from app.models.record import ExperimentRecord
 from app.models.version import RecordVersion
 
 
@@ -17,6 +16,7 @@ def get_record_for_snapshot(db: Session, record_id: UUID) -> ExperimentRecord:
         select(ExperimentRecord)
         .where(ExperimentRecord.id == record_id)
         .options(
+            selectinload(ExperimentRecord.project),
             selectinload(ExperimentRecord.values),
             selectinload(ExperimentRecord.attachments),
         )
@@ -35,6 +35,7 @@ def build_snapshot_payload(record: ExperimentRecord) -> dict:
             "status": record.status,
             "summary": record.summary,
             "project_id": record.project_id,
+            "project_name": record.project.name if record.project else None,
             "template_id": record.template_id,
             "template_version": record.template_version,
             "created_by": record.created_by,
@@ -54,7 +55,7 @@ def build_snapshot_payload(record: ExperimentRecord) -> dict:
                 "created_at": value.created_at,
                 "updated_at": value.updated_at,
             }
-            for value in record.values
+            for value in sorted(record.values, key=lambda item: (item.section_key_snapshot, item.field_key_snapshot))
         ],
         "attachments": [
             {
@@ -68,7 +69,7 @@ def build_snapshot_payload(record: ExperimentRecord) -> dict:
                 "created_at": item.created_at,
                 "updated_at": item.updated_at,
             }
-            for item in record.attachments
+            for item in sorted(record.attachments, key=lambda attachment: attachment.stored_name)
         ],
     }
 
@@ -80,7 +81,6 @@ def create_record_snapshot(
     created_by: UUID | None = None,
 ) -> RecordVersion:
     record = get_record_for_snapshot(db, record_id)
-
     current_max_version = db.scalar(
         select(func.max(RecordVersion.version_no)).where(RecordVersion.record_id == record_id)
     )

@@ -1,5 +1,20 @@
-# Vue 3 + TypeScript + Vite
+﻿# Lab Notebook Web
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+前端基于 `Vue 3 + TypeScript + Vite`，负责实验室记录系统的工作台界面。
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+## 本地开发
+
+1. 启动 API 服务，默认地址为 `http://127.0.0.1:8000`
+2. 在仓库根目录执行 `pnpm dev:web`
+3. 浏览器访问 `http://127.0.0.1:5173`
+
+如果没有配置 `VITE_API_BASE_URL`，开发环境会自动通过 Vite 代理将 `/api` 请求转发到本地后端。
+
+## 当前功能
+
+- 登录与会话恢复
+- 项目管理
+- 实验模板管理
+- 实验记录创建、编辑、详情查看
+- 附件上传与下载
+- 记录版本快照查看

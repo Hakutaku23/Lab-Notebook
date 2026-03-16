@@ -1,15 +1,16 @@
-from app.models.base import Base
 from app.models import (
-    User,
-    Project,
-    ExperimentTemplate,
-    TemplateSection,
-    TemplateField,
-    ExperimentRecord,
-    RecordFieldValue,
     Attachment,
+    AuditLog,
+    ExperimentRecord,
+    ExperimentTemplate,
+    Project,
+    RecordFieldValue,
     RecordVersion,
+    TemplateField,
+    TemplateSection,
+    User,
 )
+from app.models.base import Base
 
 __all__ = [
     "Base",
@@ -22,4 +23,5 @@ __all__ = [
     "RecordFieldValue",
     "Attachment",
     "RecordVersion",
+    "AuditLog",
 ]

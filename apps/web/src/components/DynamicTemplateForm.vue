@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import type { ExperimentTemplateDetail, TemplateField } from "../types/api";
 
 const props = defineProps<{
@@ -139,7 +139,7 @@ function resolveSelectOptions(field: TemplateField): Array<{ label: string; valu
 
         <label
           v-else-if="field.field_type === 'checkbox'"
-          style="display:flex; gap:8px; align-items:center;"
+          class="checkbox-field"
         >
           <input
             type="checkbox"
@@ -162,7 +162,7 @@ function resolveSelectOptions(field: TemplateField): Array<{ label: string; valu
           v-else-if="field.field_type === 'table'"
           class="textarea"
           rows="6"
-          placeholder="可填写 JSON / CSV / Markdown 表格。"
+          placeholder="可填写 JSON、CSV 或 Markdown 表格内容"
           :value="fieldTextValue(field)"
           @input="onTextInput(field.id, $event)"
         />
@@ -171,7 +171,7 @@ function resolveSelectOptions(field: TemplateField): Array<{ label: string; valu
           v-else-if="field.field_type === 'file'"
           class="textarea"
           rows="3"
-          placeholder="这里可记录附件说明；真实上传请在记录编辑页附件区完成。"
+          placeholder="这里可填写附件说明；真实上传请在记录详情页的附件区域完成"
           :value="fieldTextValue(field)"
           @input="onTextInput(field.id, $event)"
         />

@@ -190,3 +190,61 @@ export interface ExperimentRecordDetail extends ExperimentRecordSummary {
   values: RecordFieldValueItem[];
   attachments: AttachmentItem[];
 }
+
+export interface AuditLogItem {
+  id: string;
+  actor_id?: string | null;
+  actor_username?: string | null;
+  action: string;
+  resource_type: string;
+  resource_id?: string | null;
+  summary: string;
+  detail_json?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecordDiffItem {
+  group: string;
+  key: string;
+  label: string;
+  change_type: string;
+  before: unknown;
+  after: unknown;
+}
+
+export interface RecordVersionCompareResult {
+  from_version: RecordVersionSummary;
+  to_version: RecordVersionSummary;
+  change_count: number;
+  items: RecordDiffItem[];
+}
+
+export interface LLMStatus {
+  provider: string;
+  model?: string | null;
+  enabled: boolean;
+  supports_generation: boolean;
+  message: string;
+}
+
+export interface AuthUser {
+  id: string;
+  username: string;
+  email?: string | null;
+  full_name?: string | null;
+  role?: string | null;
+  is_active?: boolean;
+}
+
+export interface LoginPayload {
+  username: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  expires_in?: number | null;
+  user: AuthUser | null;
+}

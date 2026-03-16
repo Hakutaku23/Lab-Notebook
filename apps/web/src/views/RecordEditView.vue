@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { useRoute } from "vue-router";
 
@@ -138,7 +138,12 @@ onMounted(loadRecord);
 <template>
   <div class="page">
     <section class="card">
-      <h2>编辑实验记录</h2>
+      <div class="section-header">
+        <div>
+          <h2>编辑实验记录</h2>
+          <p class="muted">保存后会自动生成一条新快照，方便回溯内容变更。</p>
+        </div>
+      </div>
 
       <p v-if="loading" class="muted">正在加载记录...</p>
 

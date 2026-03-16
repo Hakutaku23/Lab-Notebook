@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { RouterLink } from "vue-router";
 
@@ -51,7 +51,7 @@ async function loadRecords() {
 }
 
 async function removeRecord(recordId: string) {
-  const confirmed = window.confirm("确认删除该实验记录？");
+  const confirmed = window.confirm("确认删除该实验记录吗？");
   if (!confirmed) {
     return;
   }
@@ -71,17 +71,26 @@ onMounted(async () => {
     await loadRecords();
   } catch (err) {
     console.error(err);
-    error.value = "初始化页面失败。";
+    error.value = "页面初始化失败。";
   }
 });
 </script>
 
 <template>
   <div class="page">
+    <section class="page-hero">
+      <div>
+        <p class="eyebrow">Records</p>
+        <h2>实验记录</h2>
+        <p class="muted">按项目、模板和状态筛选记录，快速进入详情和编辑流程。</p>
+      </div>
+      <RouterLink class="button" to="/records/new">新建实验记录</RouterLink>
+    </section>
+
     <section class="card">
       <div class="row-between">
-        <h2>实验记录列表</h2>
-        <RouterLink class="button" to="/records/new">新建实验记录</RouterLink>
+        <h3>记录列表</h3>
+        <RouterLink class="button secondary" to="/records/new">新建实验记录</RouterLink>
       </div>
 
       <div class="filters">
@@ -121,7 +130,7 @@ onMounted(async () => {
       <p v-if="error" class="error-text">{{ error }}</p>
       <p v-if="loading" class="muted">正在加载实验记录...</p>
 
-      <div v-else-if="records.length === 0" class="muted">
+      <div v-else-if="records.length === 0" class="empty-state">
         暂无实验记录。
       </div>
 

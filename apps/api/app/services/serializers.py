@@ -1,10 +1,25 @@
 from __future__ import annotations
 
 from app.models.attachment import Attachment
+from app.models.audit_log import AuditLog
 from app.models.project import Project
 from app.models.record import ExperimentRecord
 from app.models.template import ExperimentTemplate
+from app.models.user import User
 from app.models.version import RecordVersion
+
+
+def serialize_current_user(user: User) -> dict:
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role,
+        "is_active": user.is_active,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+    }
 
 
 def serialize_attachment(item: Attachment) -> dict:
@@ -118,7 +133,7 @@ def serialize_record_detail(record: ExperimentRecord) -> dict:
                 "created_at": value.created_at,
                 "updated_at": value.updated_at,
             }
-            for value in record.values
+            for value in sorted(record.values, key=lambda item: (item.section_key_snapshot, item.field_key_snapshot))
         ],
         "attachments": [serialize_attachment(item) for item in record.attachments],
     }
@@ -140,4 +155,19 @@ def serialize_version_detail(item: RecordVersion) -> dict:
     return {
         **serialize_version_summary(item),
         "snapshot_json": item.snapshot_json,
+    }
+
+
+def serialize_audit_log(item: AuditLog) -> dict:
+    return {
+        "id": item.id,
+        "actor_id": item.actor_id,
+        "actor_username": item.actor_username,
+        "action": item.action,
+        "resource_type": item.resource_type,
+        "resource_id": item.resource_id,
+        "summary": item.summary,
+        "detail_json": item.detail_json,
+        "created_at": item.created_at,
+        "updated_at": item.updated_at,
     }

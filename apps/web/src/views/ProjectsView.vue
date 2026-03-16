@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { RouterLink } from "vue-router";
 
@@ -49,14 +49,14 @@ async function submitProject() {
     await loadProjects();
   } catch (err) {
     console.error(err);
-    error.value = "项目创建失败。请先确认开发用户已初始化。";
+    error.value = "项目创建失败，请确认当前登录用户有权限。";
   } finally {
     submitting.value = false;
   }
 }
 
 async function removeProject(projectId: string) {
-  const confirmed = window.confirm("确认删除该项目？若项目下已有记录将无法删除。");
+  const confirmed = window.confirm("确认删除该项目吗？若项目下已有记录，将无法删除。");
   if (!confirmed) {
     return;
   }
@@ -75,9 +75,22 @@ onMounted(loadProjects);
 
 <template>
   <div class="page">
+    <section class="page-hero">
+      <div>
+        <p class="eyebrow">Projects</p>
+        <h2>项目工作台</h2>
+        <p class="muted">先建立项目，再基于项目组织实验记录和模板使用范围。</p>
+      </div>
+      <RouterLink class="button" to="/records/new">新建实验记录</RouterLink>
+    </section>
+
     <section class="card">
-      <h2>创建项目</h2>
-      <p class="muted">owner_id 可先留空，后端会自动选取第一个开发用户。</p>
+      <div class="section-header">
+        <div>
+          <h3>创建项目</h3>
+          <p class="muted">`owner_id` 可留空，默认会使用当前登录用户。</p>
+        </div>
+      </div>
 
       <div class="form-item">
         <label class="label">项目名称</label>
@@ -96,7 +109,7 @@ onMounted(loadProjects);
 
       <div class="form-item">
         <label class="label">Owner ID（可选）</label>
-        <input v-model="form.owner_id" class="input" type="text" placeholder="可留空" />
+        <input v-model="form.owner_id" class="input" type="text" placeholder="默认当前用户" />
       </div>
 
       <button class="button" :disabled="submitting || !form.name.trim()" @click="submitProject">
@@ -108,13 +121,13 @@ onMounted(loadProjects);
 
     <section class="card">
       <div class="row-between">
-        <h2>项目列表</h2>
+        <h3>项目列表</h3>
         <RouterLink class="button secondary" to="/records/new">新建实验记录</RouterLink>
       </div>
 
       <p v-if="loading" class="muted">正在加载项目列表...</p>
 
-      <div v-else-if="projects.length === 0" class="muted">
+      <div v-else-if="projects.length === 0" class="empty-state">
         暂无项目。
       </div>
 
@@ -123,13 +136,13 @@ onMounted(loadProjects);
           <div class="row-between">
             <div>
               <h3>{{ project.name }}</h3>
-              <p class="muted">编码：{{ project.code || "—" }}</p>
+              <p class="muted">编码：{{ project.code || "未设置" }}</p>
               <p class="muted">ID：{{ project.id }}</p>
             </div>
 
             <div class="actions">
               <RouterLink class="button secondary" :to="`/records/new?projectId=${project.id}`">
-                基于此项目新建记录
+                基于该项目新建记录
               </RouterLink>
               <button class="button danger" @click="removeProject(project.id)">删除</button>
             </div>

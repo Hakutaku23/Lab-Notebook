@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { onMounted, ref } from "vue";
 
 import {
@@ -28,11 +28,9 @@ async function loadVersions() {
   error.value = "";
   try {
     versions.value = await fetchRecordVersions(props.recordId);
-    if (versions.value.length > 0 && !selectedVersion.value) {
-      selectedVersion.value = await fetchRecordVersionDetail(
-        props.recordId,
-        versions.value[0].id,
-      );
+    const latestVersion = versions.value[0];
+    if (latestVersion && !selectedVersion.value) {
+      selectedVersion.value = await fetchRecordVersionDetail(props.recordId, latestVersion.id);
     }
   } catch (err) {
     console.error(err);
@@ -63,17 +61,23 @@ async function createSnapshot() {
     await loadVersions();
   } catch (err) {
     console.error(err);
-    error.value = "手动快照创建失败。";
+    error.value = "手动创建快照失败。";
   } finally {
     creating.value = false;
   }
 }
+
 onMounted(loadVersions);
 </script>
 
 <template>
   <section class="card">
-    <h3>版本快照</h3>
+    <div class="section-header">
+      <div>
+        <h3>版本快照</h3>
+        <p class="muted">每次保存记录都会产生历史版本，这里也支持手动打点。</p>
+      </div>
+    </div>
 
     <div class="form-item">
       <label class="label">快照说明</label>
@@ -81,8 +85,8 @@ onMounted(loadVersions);
     </div>
 
     <div class="form-item">
-      <label class="label">创建人 ID（可选）</label>
-      <input v-model="createdBy" class="input" type="text" placeholder="可留空" />
+      <label class="label">创建者 ID（可选）</label>
+      <input v-model="createdBy" class="input" type="text" placeholder="默认使用当前登录用户" />
     </div>
 
     <button class="button" :disabled="creating" @click="createSnapshot">
@@ -92,12 +96,12 @@ onMounted(loadVersions);
     <p v-if="error" class="error-text">{{ error }}</p>
     <p v-if="loading" class="muted">正在加载版本...</p>
 
-    <div class="stack" style="margin-top:16px;">
+    <div class="stack">
       <article
         v-for="item in versions"
         :key="item.id"
         class="sub-card"
-        style="cursor:pointer;"
+        style="cursor: pointer;"
         @click="selectVersion(item.id)"
       >
         <strong>v{{ item.version_no }}</strong>
@@ -106,7 +110,7 @@ onMounted(loadVersions);
       </article>
     </div>
 
-    <div v-if="selectedVersion" style="margin-top:16px;">
+    <div v-if="selectedVersion" class="snapshot-detail">
       <h4>当前查看：v{{ selectedVersion.version_no }}</h4>
       <pre class="detail-value">{{ JSON.stringify(selectedVersion.snapshot_json, null, 2) }}</pre>
     </div>

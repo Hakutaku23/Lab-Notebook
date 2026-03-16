@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
@@ -103,7 +103,7 @@ async function submitRecord() {
       values: buildValuePayload(selectedTemplate.value),
     });
 
-    router.push(`/records/${created.id}`);
+    await router.push(`/records/${created.id}`);
   } catch (err) {
     console.error(err);
     error.value = "实验记录创建失败，请检查必填字段是否完整。";
@@ -143,7 +143,7 @@ onMounted(async () => {
 
     if (typeof route.query.projectId === "string") {
       form.project_id = route.query.projectId;
-    } else if (projects.value.length > 0) {
+    } else if (projects.value[0]) {
       form.project_id = projects.value[0].id;
     }
 
@@ -151,7 +151,7 @@ onMounted(async () => {
       const genericTemplate = await fetchTemplateByKey("generic-experiment-v1");
       form.template_id = genericTemplate.id;
     } catch {
-      if (templates.value.length > 0) {
+      if (templates.value[0]) {
         form.template_id = templates.value[0].id;
       }
     }
@@ -166,9 +166,21 @@ onMounted(async () => {
 
 <template>
   <div class="page">
+    <section class="page-hero">
+      <div>
+        <p class="eyebrow">Create Record</p>
+        <h2>新建实验记录</h2>
+        <p class="muted">记录基础信息、实验过程和结果，后续可继续补充附件与版本快照。</p>
+      </div>
+    </section>
+
     <section class="card">
-      <h2>新建实验记录</h2>
-      <p class="muted">第三步先实现模板驱动表单，附件上传与富文本增强放到后续阶段。</p>
+      <div class="section-header">
+        <div>
+          <h3>记录表单</h3>
+          <p class="muted">当前表单由模板动态生成，附件上传可在详情页继续补充。</p>
+        </div>
+      </div>
 
       <div v-if="loading" class="muted">正在加载项目与模板...</div>
 
@@ -208,8 +220,8 @@ onMounted(async () => {
         </div>
 
         <div class="form-item">
-          <label class="label">创建人 ID（可选）</label>
-          <input v-model="form.created_by" class="input" type="text" placeholder="可留空" />
+          <label class="label">创建者 ID（可选）</label>
+          <input v-model="form.created_by" class="input" type="text" placeholder="默认当前用户" />
         </div>
 
         <div class="form-item">

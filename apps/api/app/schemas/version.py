@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -24,4 +25,20 @@ class RecordVersionSummaryOut(BaseModel):
 
 
 class RecordVersionDetailOut(RecordVersionSummaryOut):
-    snapshot_json: dict
+    snapshot_json: dict[str, Any]
+
+
+class RecordDiffItemOut(BaseModel):
+    group: str
+    key: str
+    label: str
+    change_type: str
+    before: Any = None
+    after: Any = None
+
+
+class RecordVersionCompareOut(BaseModel):
+    from_version: RecordVersionSummaryOut
+    to_version: RecordVersionSummaryOut
+    change_count: int
+    items: list[RecordDiffItemOut]

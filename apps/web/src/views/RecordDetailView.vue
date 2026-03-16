@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 
@@ -29,10 +29,10 @@ const valueMap = computed<Record<string, RecordFieldValueItem>>(() => {
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) {
-    return "—";
+    return "无";
   }
   if (typeof value === "string") {
-    return value || "—";
+    return value || "无";
   }
   return JSON.stringify(value, null, 2);
 }
