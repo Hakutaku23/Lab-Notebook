@@ -23,21 +23,32 @@ router = APIRouter()
 def list_audit_logs(
     resource_type: str | None = Query(default=None),
     resource_id: UUID | None = Query(default=None),
+    actor_id: UUID | None = Query(default=None),
+    action: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     stmt = select(AuditLog).order_by(AuditLog.created_at.desc())
+
     if resource_type:
         stmt = stmt.where(AuditLog.resource_type == resource_type)
+
     if resource_id:
         stmt = stmt.where(AuditLog.resource_id == resource_id)
+
+    if actor_id:
+        stmt = stmt.where(AuditLog.actor_id == actor_id)
+
+    if action:
+        stmt = stmt.where(AuditLog.action == action)
 
     if current_user.role != "admin":
         if resource_type == "record" and resource_id is not None:
             record = db.get(ExperimentRecord, resource_id)
             if record is None:
                 raise HTTPException(status_code=404, detail="实验记录不存在。")
+
             project = db.get(Project, record.project_id)
             ensure_record_access(current_user, record, project=project)
         else:

@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
+
 import ProjectsView from "../views/ProjectsView.vue";
 import RecordsView from "../views/RecordsView.vue";
 import RecordCreateView from "../views/RecordCreateView.vue";
@@ -6,6 +7,8 @@ import RecordDetailView from "../views/RecordDetailView.vue";
 import RecordEditView from "../views/RecordEditView.vue";
 import TemplatesView from "../views/TemplatesView.vue";
 import LoginView from "../views/LoginView.vue";
+import AuditLogsView from "../views/AuditLogsView.vue";
+
 import { pinia } from "../stores";
 import { useAuthStore } from "../stores/auth";
 
@@ -72,6 +75,15 @@ export const router = createRouter({
         requiresAuth: true,
       },
     },
+    {
+      path: "/audit-logs",
+      name: "audit-logs",
+      component: AuditLogsView,
+      meta: {
+        requiresAuth: true,
+        adminOnly: true,
+      },
+    },
   ],
 });
 
@@ -88,6 +100,12 @@ router.beforeEach(async (to) => {
       query: {
         redirect: to.fullPath,
       },
+    };
+  }
+
+  if (to.meta.adminOnly && !authStore.isAdmin) {
+    return {
+      name: "projects",
     };
   }
 

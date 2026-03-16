@@ -1,12 +1,13 @@
 ﻿<script setup lang="ts">
-import { onMounted, ref } from "vue";
-
+import { reactive, ref, watch } from "vue";
 import {
+  compareRecordVersions,
   createManualSnapshot,
   fetchRecordVersionDetail,
   fetchRecordVersions,
 } from "../api/records";
 import type {
+  RecordVersionCompareResult,
   RecordVersionDetail,
   RecordVersionSummary,
 } from "../types/api";
@@ -15,22 +16,138 @@ const props = defineProps<{
   recordId: string;
 }>();
 
+const loading = ref(false);
+const detailLoading = ref(false);
+const creating = ref(false);
+const comparing = ref(false);
+
+const error = ref("");
+const compareError = ref("");
+
 const versions = ref<RecordVersionSummary[]>([]);
 const selectedVersion = ref<RecordVersionDetail | null>(null);
-const comment = ref("");
-const createdBy = ref("");
-const loading = ref(false);
-const creating = ref(false);
-const error = ref("");
+const compareResult = ref<RecordVersionCompareResult | null>(null);
 
-async function loadVersions() {
+const fromVersionId = ref("");
+const toVersionId = ref("");
+
+const snapshotForm = reactive({
+  comment: "",
+});
+
+function formatTime(value: string) {
+  return new Date(value).toLocaleString();
+}
+
+function formatValue(value: unknown) {
+  if (value === null || value === undefined) {
+    return "—";
+  }
+  if (typeof value === "string") {
+    return value || "—";
+  }
+  return JSON.stringify(value, null, 2);
+}
+
+function versionLabel(item: RecordVersionSummary) {
+  return `v${item.version_no} · ${formatTime(item.created_at)}`;
+}
+
+async function loadSelectedVersion(versionId: string) {
+  if (!versionId) {
+    selectedVersion.value = null;
+    return;
+  }
+
+  detailLoading.value = true;
+  error.value = "";
+
+  try {
+    selectedVersion.value = await fetchRecordVersionDetail(props.recordId, versionId);
+  } catch (err) {
+    console.error(err);
+    error.value = "版本详情加载失败。";
+  } finally {
+    detailLoading.value = false;
+  }
+}
+
+async function runCompare() {
+  compareError.value = "";
+
+  if (!fromVersionId.value || !toVersionId.value) {
+    compareResult.value = null;
+    return;
+  }
+
+  if (fromVersionId.value === toVersionId.value) {
+    compareError.value = "对比版本不能相同。";
+    compareResult.value = null;
+    return;
+  }
+
+  comparing.value = true;
+
+  try {
+    compareResult.value = await compareRecordVersions(
+      props.recordId,
+      fromVersionId.value,
+      toVersionId.value,
+    );
+  } catch (err) {
+    console.error(err);
+    compareError.value = "版本差异计算失败。";
+    compareResult.value = null;
+  } finally {
+    comparing.value = false;
+  }
+}
+
+async function refreshVersions(preferredVersionId?: string) {
   loading.value = true;
   error.value = "";
+
   try {
-    versions.value = await fetchRecordVersions(props.recordId);
-    const latestVersion = versions.value[0];
-    if (latestVersion && !selectedVersion.value) {
-      selectedVersion.value = await fetchRecordVersionDetail(props.recordId, latestVersion.id);
+    const list = await fetchRecordVersions(props.recordId);
+    versions.value = list;
+
+    if (list.length === 0) {
+      selectedVersion.value = null;
+      fromVersionId.value = "";
+      toVersionId.value = "";
+      compareResult.value = null;
+      return;
+    }
+
+    const latestVersion = list[0];
+    if (!latestVersion) {
+      selectedVersion.value = null;
+      return;
+    }
+
+    const selectedId =
+      preferredVersionId ||
+      selectedVersion.value?.id ||
+      latestVersion.id;
+
+    await loadSelectedVersion(selectedId);
+
+    if (!toVersionId.value || !list.some((item) => item.id === toVersionId.value)) {
+      toVersionId.value = latestVersion.id;
+    }
+
+    if (
+      !fromVersionId.value ||
+      !list.some((item) => item.id === fromVersionId.value) ||
+      fromVersionId.value === toVersionId.value
+    ) {
+      fromVersionId.value = list[1]?.id || "";
+    }
+
+    if (fromVersionId.value && toVersionId.value && fromVersionId.value !== toVersionId.value) {
+      await runCompare();
+    } else {
+      compareResult.value = null;
     }
   } catch (err) {
     console.error(err);
@@ -40,25 +157,17 @@ async function loadVersions() {
   }
 }
 
-async function selectVersion(versionId: string) {
-  try {
-    selectedVersion.value = await fetchRecordVersionDetail(props.recordId, versionId);
-  } catch (err) {
-    console.error(err);
-    error.value = "版本详情加载失败。";
-  }
-}
-
-async function createSnapshot() {
+async function handleCreateSnapshot() {
   creating.value = true;
   error.value = "";
+
   try {
-    selectedVersion.value = await createManualSnapshot(props.recordId, {
-      comment: comment.value || undefined,
-      created_by: createdBy.value || undefined,
+    const created = await createManualSnapshot(props.recordId, {
+      comment: snapshotForm.comment || undefined,
     });
-    comment.value = "";
-    await loadVersions();
+
+    snapshotForm.comment = "";
+    await refreshVersions(created.id);
   } catch (err) {
     console.error(err);
     error.value = "手动创建快照失败。";
@@ -67,52 +176,192 @@ async function createSnapshot() {
   }
 }
 
-onMounted(loadVersions);
+watch(
+  () => props.recordId,
+  () => {
+    compareResult.value = null;
+    fromVersionId.value = "";
+    toVersionId.value = "";
+    selectedVersion.value = null;
+    snapshotForm.comment = "";
+    void refreshVersions();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
   <section class="card">
-    <div class="section-header">
+    <div class="row-between" style="gap: 16px; align-items: flex-start;">
       <div>
         <h3>版本快照</h3>
-        <p class="muted">每次保存记录都会产生历史版本，这里也支持手动打点。</p>
+        <p class="muted">
+          支持手动打点、查看任意版本快照，并对比两个历史版本之间的差异。
+        </p>
       </div>
+
+      <button class="button secondary" type="button" @click="refreshVersions()">
+        刷新
+      </button>
     </div>
 
-    <div class="form-item">
-      <label class="label">快照说明</label>
-      <input v-model="comment" class="input" type="text" placeholder="例如：完成初稿后留档" />
-    </div>
+    <form
+      style="display: grid; grid-template-columns: 1fr auto; gap: 12px; margin-top: 16px;"
+      @submit.prevent="handleCreateSnapshot"
+    >
+      <input
+        v-model="snapshotForm.comment"
+        type="text"
+        placeholder="快照说明，例如：修改实验条件后手动留档"
+      />
+      <button class="button" type="submit" :disabled="creating">
+        {{ creating ? "创建中..." : "手动创建快照" }}
+      </button>
+    </form>
 
-    <div class="form-item">
-      <label class="label">创建者 ID（可选）</label>
-      <input v-model="createdBy" class="input" type="text" placeholder="默认使用当前登录用户" />
-    </div>
+    <p v-if="error" class="error-text" style="margin-top: 12px;">
+      {{ error }}
+    </p>
 
-    <button class="button" :disabled="creating" @click="createSnapshot">
-      {{ creating ? "创建中..." : "手动创建快照" }}
-    </button>
+    <p v-if="loading" class="muted" style="margin-top: 16px;">
+      正在加载版本...
+    </p>
 
-    <p v-if="error" class="error-text">{{ error }}</p>
-    <p v-if="loading" class="muted">正在加载版本...</p>
+    <template v-else>
+      <p v-if="versions.length === 0" class="muted" style="margin-top: 16px;">
+        当前还没有可用版本。
+      </p>
 
-    <div class="stack">
-      <article
-        v-for="item in versions"
-        :key="item.id"
-        class="sub-card"
-        style="cursor: pointer;"
-        @click="selectVersion(item.id)"
-      >
-        <strong>v{{ item.version_no }}</strong>
-        <p class="muted">{{ item.comment || "无说明" }}</p>
-        <p class="muted">{{ item.created_at }}</p>
-      </article>
-    </div>
+      <div v-else style="display: grid; gap: 18px; margin-top: 16px;">
+        <div class="card" style="padding: 16px; margin: 0;">
+          <div class="row-between" style="gap: 16px; align-items: flex-start;">
+            <div>
+              <strong>版本列表</strong>
+              <div class="muted">点击任一版本可查看完整快照。</div>
+            </div>
+          </div>
 
-    <div v-if="selectedVersion" class="snapshot-detail">
-      <h4>当前查看：v{{ selectedVersion.version_no }}</h4>
-      <pre class="detail-value">{{ JSON.stringify(selectedVersion.snapshot_json, null, 2) }}</pre>
-    </div>
+          <div style="display: grid; gap: 8px; margin-top: 12px;">
+            <button
+              v-for="item in versions"
+              :key="item.id"
+              type="button"
+              class="button secondary"
+              style="justify-content: space-between; text-align: left;"
+              @click="loadSelectedVersion(item.id)"
+            >
+              <span>{{ versionLabel(item) }}</span>
+              <span>{{ item.comment || "无说明" }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="card" style="padding: 16px; margin: 0;">
+          <div class="row-between" style="gap: 16px; align-items: flex-start;">
+            <div>
+              <strong>版本差异对比</strong>
+              <div class="muted">选择两个版本，查看字段变化明细。</div>
+            </div>
+          </div>
+
+          <div
+            style="
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+              gap: 12px;
+              margin-top: 12px;
+            "
+          >
+            <label style="display: grid; gap: 6px;">
+              <span>起始版本</span>
+              <select v-model="fromVersionId">
+                <option value="">请选择</option>
+                <option v-for="item in versions" :key="item.id" :value="item.id">
+                  {{ versionLabel(item) }}
+                </option>
+              </select>
+            </label>
+
+            <label style="display: grid; gap: 6px;">
+              <span>目标版本</span>
+              <select v-model="toVersionId">
+                <option value="">请选择</option>
+                <option v-for="item in versions" :key="item.id" :value="item.id">
+                  {{ versionLabel(item) }}
+                </option>
+              </select>
+            </label>
+
+            <div style="display: flex; align-items: end;">
+              <button class="button" type="button" :disabled="comparing" @click="runCompare">
+                {{ comparing ? "对比中..." : "开始对比" }}
+              </button>
+            </div>
+          </div>
+
+          <p v-if="compareError" class="error-text" style="margin-top: 12px;">
+            {{ compareError }}
+          </p>
+
+          <template v-if="compareResult">
+            <div style="margin-top: 16px;">
+              <div class="muted">
+                对比 v{{ compareResult.from_version.version_no }}
+                → v{{ compareResult.to_version.version_no }}
+              </div>
+              <div style="margin-top: 4px;">
+                共发现 <strong>{{ compareResult.change_count }}</strong> 处变化
+              </div>
+            </div>
+
+            <div v-if="compareResult.items.length > 0" style="margin-top: 12px;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>分组</th>
+                    <th>字段</th>
+                    <th>变化类型</th>
+                    <th>修改前</th>
+                    <th>修改后</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in compareResult.items" :key="`${item.group}-${item.key}`">
+                    <td>{{ item.group }}</td>
+                    <td>{{ item.label || item.key }}</td>
+                    <td>{{ item.change_type }}</td>
+                    <td><pre class="detail-value">{{ formatValue(item.before) }}</pre></td>
+                    <td><pre class="detail-value">{{ formatValue(item.after) }}</pre></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <p v-else class="muted" style="margin-top: 12px;">两个版本之间没有字段变化。</p>
+          </template>
+        </div>
+
+        <div class="card" style="padding: 16px; margin: 0;">
+          <strong>当前查看快照</strong>
+
+          <p v-if="detailLoading" class="muted" style="margin-top: 12px;">
+            正在加载版本详情...
+          </p>
+
+          <template v-else-if="selectedVersion">
+            <div class="muted" style="margin-top: 12px;">
+              v{{ selectedVersion.version_no }} · {{ formatTime(selectedVersion.created_at) }}
+            </div>
+            <div class="muted">{{ selectedVersion.comment || "无说明" }}</div>
+
+            <pre class="detail-value" style="margin-top: 12px;">{{
+JSON.stringify(selectedVersion.snapshot_json, null, 2)
+            }}</pre>
+          </template>
+
+          <p v-else class="muted" style="margin-top: 12px;">尚未选择版本。</p>
+        </div>
+      </div>
+    </template>
   </section>
 </template>

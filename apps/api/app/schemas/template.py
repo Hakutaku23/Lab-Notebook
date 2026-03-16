@@ -98,3 +98,17 @@ class ExperimentTemplateSummaryOut(BaseModel):
 
 class ExperimentTemplateDetailOut(ExperimentTemplateSummaryOut):
     sections: list[TemplateSectionOut]
+
+class TemplateVersionCreate(BaseModel):
+    key: str = Field(min_length=1, max_length=100)
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
+    category: str | None = Field(default=None, max_length=50)
+    created_by: UUID | None = None
+    is_active: bool = True
+    sections: list[TemplateSectionIn] | None = None
+
+class TemplateLineageOut(BaseModel):
+    root_template_id: UUID
+    current_template_id: UUID
+    items: list[ExperimentTemplateSummaryOut]

@@ -3,53 +3,57 @@ import { onMounted, reactive, ref } from "vue";
 
 import {
   createTemplate,
+  createTemplateVersion,
   deleteTemplate,
   fetchTemplateDetail,
+  fetchTemplateLineage,
   fetchTemplates,
   updateTemplate,
 } from "../api/templates";
+
 import type {
   ExperimentTemplateDetail,
   ExperimentTemplateSummary,
+  TemplateLineage,
+  TemplateSection,
   TemplateSectionPayload,
 } from "../types/api";
 
 const templates = ref<ExperimentTemplateSummary[]>([]);
-const selected = ref<ExperimentTemplateDetail | null>(null);
+const selectedTemplate = ref<ExperimentTemplateDetail | null>(null);
+const lineage = ref<TemplateLineage | null>(null);
+
 const loading = ref(false);
+const detailLoading = ref(false);
+const lineageLoading = ref(false);
 const saving = ref(false);
+const versioning = ref(false);
+
 const error = ref("");
+const success = ref("");
 const sectionsText = ref("[]");
 
 const form = reactive({
   id: "",
   name: "",
   key: "",
-  description: "",
   category: "generic",
+  description: "",
   parent_template_id: "",
   created_by: "",
   is_active: true,
 });
 
-function resetForm() {
-  form.id = "";
-  form.name = "";
-  form.key = "";
-  form.description = "";
-  form.category = "generic";
-  form.parent_template_id = "";
-  form.created_by = "";
-  form.is_active = true;
-  sectionsText.value = "[]";
-  selected.value = null;
+function clearMessages() {
+  error.value = "";
+  success.value = "";
 }
 
-function toEditableSections(template: ExperimentTemplateDetail): TemplateSectionPayload[] {
-  return template.sections.map((section) => ({
+function serializeSections(sections: TemplateSection[]): string {
+  const payload: TemplateSectionPayload[] = sections.map((section) => ({
     key: section.key,
     title: section.title,
-    description: section.description ?? undefined,
+    description: section.description ?? null,
     order_index: section.order_index,
     is_repeatable: section.is_repeatable,
     fields: section.fields.map((field) => ({
@@ -58,117 +62,255 @@ function toEditableSections(template: ExperimentTemplateDetail): TemplateSection
       field_type: field.field_type,
       required: field.required,
       order_index: field.order_index,
-      placeholder: field.placeholder ?? undefined,
-      help_text: field.help_text ?? undefined,
-      default_value: field.default_value,
-      options: field.options ?? undefined,
-      validation_rules: field.validation_rules ?? undefined,
-      ui_props: field.ui_props ?? undefined,
+      placeholder: field.placeholder ?? null,
+      help_text: field.help_text ?? null,
+      default_value: field.default_value ?? null,
+      options: field.options ?? null,
+      validation_rules: field.validation_rules ?? null,
+      ui_props: field.ui_props ?? null,
     })),
   }));
+
+  return JSON.stringify(payload, null, 2);
 }
 
-async function loadTemplates() {
-  loading.value = true;
-  error.value = "";
+function resetForm() {
+  selectedTemplate.value = null;
+  lineage.value = null;
+  form.id = "";
+  form.name = "";
+  form.key = "";
+  form.category = "generic";
+  form.description = "";
+  form.parent_template_id = "";
+  form.created_by = "";
+  form.is_active = true;
+  sectionsText.value = "[]";
+}
+
+function applyTemplate(detail: ExperimentTemplateDetail) {
+  selectedTemplate.value = detail;
+  form.id = detail.id;
+  form.name = detail.name;
+  form.key = detail.key;
+  form.category = detail.category;
+  form.description = detail.description ?? "";
+  form.parent_template_id = detail.parent_template_id ?? "";
+  form.created_by = "";
+  form.is_active = detail.is_active;
+  sectionsText.value = serializeSections(detail.sections);
+}
+
+function buildCopyKey(baseKey: string) {
+  return `${baseKey}-copy-${Date.now().toString().slice(-4)}`;
+}
+
+function buildVersionKey(baseKey: string, versionNo: number) {
+  const value = baseKey.trim();
+  if (/[-_]v\d+$/i.test(value)) {
+    return value.replace(/[-_]v\d+$/i, `-v${versionNo}`);
+  }
+  return `${value}-v${versionNo}`;
+}
+
+function parseSections(): TemplateSectionPayload[] {
+  const parsed = JSON.parse(sectionsText.value || "[]");
+
+  if (!Array.isArray(parsed)) {
+    throw new Error("Sections JSON 必须是数组。");
+  }
+
+  return parsed as TemplateSectionPayload[];
+}
+
+async function loadLineage(templateId: string) {
+  lineageLoading.value = true;
+
   try {
-    templates.value = await fetchTemplates(false);
+    lineage.value = await fetchTemplateLineage(templateId);
   } catch (err) {
     console.error(err);
-    error.value = "模板列表加载失败。";
+    lineage.value = null;
+  } finally {
+    lineageLoading.value = false;
+  }
+}
+
+async function loadTemplates(preferredId = "") {
+  loading.value = true;
+
+  try {
+    templates.value = await fetchTemplates(true);
+
+    const targetId =
+      preferredId ||
+      (selectedTemplate.value &&
+      templates.value.some((item) => item.id === selectedTemplate.value?.id)
+        ? selectedTemplate.value.id
+        : templates.value[0]?.id);
+
+    if (targetId) {
+      await loadTemplateDetail(targetId);
+    } else if (!form.id) {
+      resetForm();
+    }
+  } catch (err: any) {
+    error.value = err?.response?.data?.detail || "模板列表加载失败。";
   } finally {
     loading.value = false;
   }
 }
 
-async function loadTemplate(id: string) {
-  error.value = "";
+async function loadTemplateDetail(templateId: string) {
+  detailLoading.value = true;
+  clearMessages();
+
   try {
-    const detail = await fetchTemplateDetail(id);
-    selected.value = detail;
-
-    form.id = detail.id;
-    form.name = detail.name;
-    form.key = detail.key;
-    form.description = detail.description || "";
-    form.category = detail.category;
-    form.parent_template_id = detail.parent_template_id || "";
-    form.is_active = detail.is_active;
-
-    sectionsText.value = JSON.stringify(toEditableSections(detail), null, 2);
-  } catch (err) {
-    console.error(err);
-    error.value = "模板详情加载失败。";
+    const detail = await fetchTemplateDetail(templateId);
+    applyTemplate(detail);
+    await loadLineage(templateId);
+  } catch (err: any) {
+    error.value = err?.response?.data?.detail || "模板详情加载失败。";
+  } finally {
+    detailLoading.value = false;
   }
 }
 
-function duplicateCurrent() {
-  if (!selected.value) return;
-
-  form.id = "";
-  form.name = `${form.name}-副本`;
-  form.key = `${form.key}-copy`;
+function handleCreateNew() {
+  clearMessages();
+  resetForm();
 }
 
-async function saveTemplate() {
+function handleCopyCurrent() {
+  if (!selectedTemplate.value) {
+    error.value = "请先选择一个模板。";
+    return;
+  }
+
+  clearMessages();
+
+  const source = selectedTemplate.value;
+  form.id = "";
+  form.name = `${source.name} 副本`;
+  form.key = buildCopyKey(source.key);
+  form.category = source.category;
+  form.description = source.description ?? "";
+  form.parent_template_id = source.id;
+  form.created_by = "";
+  form.is_active = source.is_active;
+  sectionsText.value = serializeSections(source.sections);
+
+  success.value = "已复制到编辑表单，保存后会创建一个新模板。";
+}
+
+async function handleSave() {
+  clearMessages();
   saving.value = true;
-  error.value = "";
 
   try {
-    const sections = JSON.parse(sectionsText.value) as TemplateSectionPayload[];
-
-    const payload = {
-      name: form.name,
-      key: form.key,
-      description: form.description || undefined,
-      category: form.category,
-      parent_template_id: form.parent_template_id || undefined,
-      created_by: form.created_by || undefined,
-      is_active: form.is_active,
-      sections,
-    };
-
-    let savedId = form.id;
+    const sections = parseSections();
 
     if (form.id) {
       const updated = await updateTemplate(form.id, {
-        name: payload.name,
-        key: payload.key,
-        description: payload.description,
-        category: payload.category,
-        parent_template_id: payload.parent_template_id,
-        is_active: payload.is_active,
-        sections: payload.sections,
+        name: form.name.trim(),
+        key: form.key.trim(),
+        description: form.description.trim() || "",
+        category: form.category.trim() || "generic",
+        parent_template_id: form.parent_template_id.trim() || null,
+        is_active: form.is_active,
+        sections,
       });
-      savedId = updated.id;
-    } else {
-      const created = await createTemplate(payload);
-      savedId = created.id;
-    }
 
-    await loadTemplates();
-    await loadTemplate(savedId);
-  } catch (err) {
-    console.error(err);
-    error.value = "模板保存失败，请检查 JSON 结构、模板 key 是否重复，或是否在修改受保护模板。";
+      success.value = "模板已更新。";
+      await loadTemplates(updated.id);
+    } else {
+      const created = await createTemplate({
+        name: form.name.trim(),
+        key: form.key.trim(),
+        description: form.description.trim() || "",
+        category: form.category.trim() || "generic",
+        parent_template_id: form.parent_template_id.trim() || null,
+        created_by: form.created_by.trim() || undefined,
+        is_active: form.is_active,
+        sections,
+      });
+
+      success.value = "模板已创建。";
+      await loadTemplates(created.id);
+    }
+  } catch (err: any) {
+    error.value =
+      err?.response?.data?.detail ||
+      err?.message ||
+      "模板保存失败。";
   } finally {
     saving.value = false;
   }
 }
 
-async function removeTemplate() {
-  if (!form.id) return;
-  const confirmed = window.confirm("确认删除该模板吗？");
-  if (!confirmed) return;
+async function handleCreateVersion() {
+  if (!selectedTemplate.value) {
+    error.value = "请先选择一个模板。";
+    return;
+  }
+
+  clearMessages();
+  versioning.value = true;
+
+  try {
+    const sections = parseSections();
+    const source = selectedTemplate.value;
+    const nextVersion = source.version + 1;
+
+    const created = await createTemplateVersion(source.id, {
+      key: buildVersionKey(form.key || source.key, nextVersion),
+      name: `${form.name || source.name} v${nextVersion}`,
+      description: form.description || source.description || null,
+      category: form.category || source.category,
+      is_active: form.is_active,
+      sections,
+    });
+
+    success.value = `已创建新版本：${created.name}`;
+    await loadTemplates(created.id);
+  } catch (err: any) {
+    error.value =
+      err?.response?.data?.detail ||
+      err?.message ||
+      "模板新版本创建失败。";
+  } finally {
+    versioning.value = false;
+  }
+}
+
+async function handleDelete() {
+  if (!form.id) {
+    return;
+  }
+
+  const confirmed = window.confirm("确认删除当前模板？此操作不可撤销。");
+  if (!confirmed) {
+    return;
+  }
+
+  clearMessages();
+  saving.value = true;
 
   try {
     await deleteTemplate(form.id);
+    success.value = "模板已删除。";
     resetForm();
     await loadTemplates();
-  } catch (err) {
-    console.error(err);
-    error.value = "模板删除失败。系统模板或已被使用的模板不能删除。";
+  } catch (err: any) {
+    error.value =
+      err?.response?.data?.detail || "模板删除失败。";
+  } finally {
+    saving.value = false;
   }
+}
+
+function lineageItemLabel(item: ExperimentTemplateSummary) {
+  return `${item.name} / ${item.key} / v${item.version}`;
 }
 
 onMounted(async () => {
@@ -178,99 +320,214 @@ onMounted(async () => {
 
 <template>
   <div class="page">
-    <section class="page-hero">
+    <section class="page-header">
       <div>
-        <p class="eyebrow">Templates</p>
         <h2>模板中心</h2>
-        <p class="muted">当前版本先保留 JSON 编辑能力，便于快速调整字段结构与模板版本。</p>
+        <p class="muted">
+          当前版本支持模板派生、版本谱系查看，以及基于现有模板快速创建新版本。
+        </p>
+      </div>
+
+      <div class="actions">
+        <button class="button secondary" type="button" @click="loadTemplates(selectedTemplate?.id || '')">
+          刷新
+        </button>
+        <button class="button" type="button" @click="handleCreateNew">
+          新建
+        </button>
       </div>
     </section>
 
-    <section class="template-layout">
-      <div class="card">
-        <div class="row-between">
-          <h3>模板列表</h3>
-          <button class="button secondary" @click="resetForm">新建</button>
-        </div>
-
+    <section
+      style="
+        display: grid;
+        grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+        gap: 20px;
+        align-items: start;
+      "
+    >
+      <section class="card">
+        <h3>模板列表</h3>
         <p v-if="loading" class="muted">正在加载模板...</p>
 
-        <div class="stack">
-          <article
+        <div v-else style="display: grid; gap: 10px;">
+          <button
             v-for="item in templates"
             :key="item.id"
-            class="sub-card"
-            style="cursor: pointer;"
-            @click="loadTemplate(item.id)"
+            type="button"
+            class="button secondary"
+            style="text-align: left; justify-content: space-between;"
+            @click="loadTemplateDetail(item.id)"
           >
-            <h3>{{ item.name }}</h3>
-            <p class="muted">{{ item.key }}</p>
-            <p class="muted">{{ item.category }} / v{{ item.version }}</p>
-            <p class="muted">{{ item.is_system ? "系统模板" : "自定义模板" }}</p>
-          </article>
+            <span>
+              <strong>{{ item.name }}</strong>
+              <span class="muted" style="display: block;">{{ item.key }}</span>
+            </span>
+            <span class="muted">{{ item.category }} / v{{ item.version }}</span>
+          </button>
+
+          <p v-if="templates.length === 0" class="muted">
+            当前没有模板。
+          </p>
         </div>
-      </div>
-
-      <section class="card">
-        <div class="row-between">
-          <h3>{{ form.id ? "编辑模板" : "新建模板" }}</h3>
-          <div class="actions">
-            <button class="button secondary" @click="duplicateCurrent" :disabled="!selected">
-              复制当前模板
-            </button>
-            <button class="button" :disabled="saving || !form.name || !form.key" @click="saveTemplate">
-              {{ saving ? "保存中..." : "保存模板" }}
-            </button>
-            <button class="button danger" :disabled="!form.id" @click="removeTemplate">删除</button>
-          </div>
-        </div>
-
-        <p class="muted">这一版模板管理仍以 JSON 结构编辑为主，推荐先从现有模板复制再调整。</p>
-
-        <div class="form-item">
-          <label class="label">模板名称</label>
-          <input v-model="form.name" class="input" type="text" />
-        </div>
-
-        <div class="form-item">
-          <label class="label">模板 key</label>
-          <input v-model="form.key" class="input" type="text" />
-        </div>
-
-        <div class="form-item">
-          <label class="label">分类</label>
-          <input v-model="form.category" class="input" type="text" />
-        </div>
-
-        <div class="form-item">
-          <label class="label">父模板 ID</label>
-          <input v-model="form.parent_template_id" class="input" type="text" placeholder="可留空" />
-        </div>
-
-        <div class="form-item">
-          <label class="label">创建者 ID（仅新建时可选）</label>
-          <input v-model="form.created_by" class="input" type="text" placeholder="可留空" />
-        </div>
-
-        <div class="form-item">
-          <label class="label">描述</label>
-          <textarea v-model="form.description" class="textarea" rows="3" />
-        </div>
-
-        <div class="form-item">
-          <label class="label">
-            <input v-model="form.is_active" type="checkbox" />
-            启用
-          </label>
-        </div>
-
-        <div class="form-item">
-          <label class="label">Sections JSON</label>
-          <textarea v-model="sectionsText" class="textarea" rows="24" />
-        </div>
-
-        <p v-if="error" class="error-text">{{ error }}</p>
       </section>
+
+      <div style="display: grid; gap: 20px;">
+        <section class="card">
+          <div class="row-between" style="gap: 16px; align-items: flex-start;">
+            <div>
+              <h3>{{ form.id ? "编辑模板" : "新建模板" }}</h3>
+              <p class="muted">
+                当模板已被实验记录使用时，后端会拒绝直接修改；此时请使用“派生新版本”。
+              </p>
+              <p v-if="selectedTemplate" class="muted">
+                当前选中：{{ selectedTemplate.name }} / {{ selectedTemplate.key }} / v{{ selectedTemplate.version }}
+              </p>
+            </div>
+
+            <div class="actions" style="flex-wrap: wrap;">
+              <button
+                class="button secondary"
+                type="button"
+                :disabled="!selectedTemplate"
+                @click="handleCopyCurrent"
+              >
+                复制当前模板
+              </button>
+
+              <button
+                class="button secondary"
+                type="button"
+                :disabled="!selectedTemplate || versioning"
+                @click="handleCreateVersion"
+              >
+                {{ versioning ? "派生中..." : "派生新版本" }}
+              </button>
+
+              <button class="button" type="button" :disabled="saving" @click="handleSave">
+                {{ saving ? "保存中..." : "保存模板" }}
+              </button>
+
+              <button
+                class="button secondary"
+                type="button"
+                :disabled="!form.id || saving"
+                @click="handleDelete"
+              >
+                删除
+              </button>
+            </div>
+          </div>
+
+          <p v-if="detailLoading" class="muted">正在加载模板详情...</p>
+
+          <div style="display: grid; gap: 14px;">
+            <div class="form-item">
+              <label class="label">模板名称</label>
+              <input v-model="form.name" class="input" type="text" />
+            </div>
+
+            <div class="form-item">
+              <label class="label">模板 key</label>
+              <input v-model="form.key" class="input" type="text" />
+            </div>
+
+            <div class="form-item">
+              <label class="label">分类</label>
+              <input v-model="form.category" class="input" type="text" />
+            </div>
+
+            <div class="form-item">
+              <label class="label">父模板 ID</label>
+              <input v-model="form.parent_template_id" class="input" type="text" />
+            </div>
+
+            <div class="form-item" v-if="!form.id">
+              <label class="label">创建者 ID（仅新建时可选）</label>
+              <input v-model="form.created_by" class="input" type="text" />
+            </div>
+
+            <div class="form-item">
+              <label class="label">描述</label>
+              <textarea v-model="form.description" class="textarea" rows="4" />
+            </div>
+
+            <div class="form-item">
+              <label class="label">
+                <input v-model="form.is_active" type="checkbox" />
+                启用
+              </label>
+            </div>
+
+            <div class="form-item">
+              <label class="label">Sections JSON</label>
+              <textarea v-model="sectionsText" class="textarea" rows="24" />
+            </div>
+          </div>
+
+          <p v-if="success" style="margin-top: 12px;">{{ success }}</p>
+          <p v-if="error" class="error-text">{{ error }}</p>
+        </section>
+
+        <section class="card">
+          <div class="row-between" style="gap: 16px; align-items: flex-start;">
+            <div>
+              <h3>模板谱系</h3>
+              <p class="muted">
+                展示当前模板所在版本链，可快速识别父模板、当前模板和后续版本。
+              </p>
+            </div>
+          </div>
+
+          <p v-if="lineageLoading" class="muted">正在加载模板谱系...</p>
+
+          <template v-else-if="lineage && lineage.items.length > 0">
+            <div style="display: grid; gap: 10px; margin-top: 12px;">
+              <div
+                v-for="item in lineage.items"
+                :key="item.id"
+                class="card"
+                style="padding: 14px; margin: 0;"
+              >
+                <div class="row-between" style="gap: 16px; align-items: flex-start;">
+                  <div>
+                    <strong>{{ lineageItemLabel(item) }}</strong>
+                    <div class="muted">
+                      parent: {{ item.parent_template_id || "无" }}
+                    </div>
+                  </div>
+
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <span
+                      v-if="item.id === lineage.root_template_id"
+                      class="muted"
+                    >
+                      根模板
+                    </span>
+                    <span
+                      v-if="item.id === lineage.current_template_id"
+                      class="muted"
+                    >
+                      当前模板
+                    </span>
+                    <button
+                      class="button secondary"
+                      type="button"
+                      @click="loadTemplateDetail(item.id)"
+                    >
+                      查看
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <p v-else class="muted" style="margin-top: 12px;">
+            当前没有可展示的谱系信息。
+          </p>
+        </section>
+      </div>
     </section>
   </div>
 </template>

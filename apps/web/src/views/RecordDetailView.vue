@@ -3,9 +3,12 @@ import { computed, onMounted, ref } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 
 import AttachmentManager from "../components/AttachmentManager.vue";
+import AuditLogPanel from "../components/AuditLogPanel.vue";
 import RecordVersionsPanel from "../components/RecordVersionsPanel.vue";
+
 import { fetchRecordDetail } from "../api/records";
 import { fetchTemplateDetail } from "../api/templates";
+
 import type {
   ExperimentRecordDetail,
   ExperimentTemplateDetail,
@@ -105,14 +108,19 @@ onMounted(loadRecord);
           class="detail-item"
         >
           <div class="detail-label">{{ field.label }}</div>
-          <pre class="detail-value">{{
-            formatValue(valueMap[field.id]?.value_json)
-          }}</pre>
+          <pre class="detail-value">{{ formatValue(valueMap[field.id]?.value_json) }}</pre>
         </div>
       </section>
 
       <AttachmentManager :record-id="record.id" @changed="loadRecord" />
+
       <RecordVersionsPanel :record-id="record.id" />
+
+      <AuditLogPanel
+        title="当前记录审计日志"
+        :initial-resource-type="'record'"
+        :initial-resource-id="record.id"
+      />
     </template>
   </div>
 </template>

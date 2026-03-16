@@ -248,3 +248,27 @@ export interface LoginResponse {
   expires_in?: number | null;
   user: AuthUser | null;
 }
+
+export interface AuditLogQuery {
+  resource_type?: string;
+  resource_id?: string;
+  actor_id?: string;
+  action?: string;
+  limit?: number;
+}
+
+export interface TemplateVersionCreatePayload {
+  key: string;
+  name?: string | null;
+  description?: string | null;
+  category?: string | null;
+  created_by?: string | null;
+  is_active?: boolean;
+  sections?: TemplateSectionPayload[] | null;
+}
+
+export interface TemplateLineage {
+  root_template_id: string;
+  current_template_id: string;
+  items: ExperimentTemplateSummary[];
+}

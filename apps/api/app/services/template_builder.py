@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from copy import deepcopy
+
 from fastapi import HTTPException
 
 from app.models.template import ExperimentTemplate, TemplateField, TemplateSection
-from app.schemas.template import TemplateSectionIn
+from app.schemas.template import TemplateFieldIn, TemplateSectionIn
 
 ALLOWED_FIELD_TYPES = {
     "text",
@@ -75,3 +77,36 @@ def replace_template_sections(
             section.fields.append(field)
 
         template.sections.append(section)
+
+
+def export_template_sections(template: ExperimentTemplate) -> list[TemplateSectionIn]:
+    exported: list[TemplateSectionIn] = []
+
+    for section in template.sections:
+        exported.append(
+            TemplateSectionIn(
+                key=section.key,
+                title=section.title,
+                description=section.description,
+                order_index=section.order_index,
+                is_repeatable=section.is_repeatable,
+                fields=[
+                    TemplateFieldIn(
+                        key=field.key,
+                        label=field.label,
+                        field_type=field.field_type,
+                        required=field.required,
+                        order_index=field.order_index,
+                        placeholder=field.placeholder,
+                        help_text=field.help_text,
+                        default_value=deepcopy(field.default_value),
+                        options=deepcopy(field.options),
+                        validation_rules=deepcopy(field.validation_rules),
+                        ui_props=deepcopy(field.ui_props),
+                    )
+                    for field in section.fields
+                ],
+            )
+        )
+
+    return exported

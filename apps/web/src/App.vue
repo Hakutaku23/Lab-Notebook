@@ -1,12 +1,14 @@
 ﻿<script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView, useRouter } from "vue-router";
+
 import { fetchLLMStatus } from "./api/llm";
 import { useAuthStore } from "./stores/auth";
 import type { LLMStatus } from "./types/api";
 
 const router = useRouter();
 const authStore = useAuthStore();
+
 const llmStatus = ref<LLMStatus | null>(null);
 const llmError = ref("");
 
@@ -36,9 +38,12 @@ async function signOut() {
   await router.push({ name: "login" });
 }
 
-watch(() => authStore.token, () => {
-  void hydrateSidebar();
-});
+watch(
+  () => authStore.token,
+  () => {
+    void hydrateSidebar();
+  },
+);
 
 onMounted(() => {
   void hydrateSidebar();
@@ -58,11 +63,15 @@ onMounted(() => {
         <RouterLink to="/projects">项目</RouterLink>
         <RouterLink to="/records">实验记录</RouterLink>
         <RouterLink to="/templates">模板</RouterLink>
+        <RouterLink v-if="authStore.isAdmin" to="/audit-logs">审计日志</RouterLink>
       </nav>
 
       <div class="sidebar-card">
         <strong>{{ authStore.displayName }}</strong>
         <div class="muted">{{ authStore.currentUser?.role || "member" }}</div>
+        <button class="button secondary sidebar-signout" type="button" @click="signOut">
+          退出登录
+        </button>
       </div>
 
       <div class="sidebar-card" v-if="llmStatus">
@@ -75,10 +84,6 @@ onMounted(() => {
         <strong>LLM 服务</strong>
         <div class="muted">{{ llmError }}</div>
       </div>
-
-      <button class="button secondary" type="button" @click="signOut">
-        退出登录
-      </button>
     </aside>
 
     <main class="main-content">

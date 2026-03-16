@@ -129,9 +129,9 @@ pre {
 }
 
 .sidebar {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 1.1rem;
-  align-content: start;
   padding: 1.75rem;
   background:
     linear-gradient(180deg, rgba(255, 196, 61, 0.15), transparent 24%),
@@ -191,6 +191,23 @@ pre {
   border-radius: 18px;
   padding: 1rem;
   background: rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-signout {
+  margin-top: 0.9rem;
+  width: 100%;
+}
+
+.sidebar .button.secondary,
+.sidebar-card .button.secondary {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar .button.secondary:hover,
+.sidebar-card .button.secondary:hover {
+  box-shadow: 0 12px 24px rgba(8, 15, 32, 0.18);
 }
 
 .main-content {
