@@ -1,0 +1,41 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+.env.*.local
+apps/api/.env
+apps/web/.env.local
+apps/web/.env.development.local
+
+# Node
+node_modules/
+apps/web/node_modules/
+dist/
+apps/web/dist/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.venv/
+apps/api/.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Uploads
+uploads/
+apps/api/uploads/
+
+# Database
+*.sqlite3

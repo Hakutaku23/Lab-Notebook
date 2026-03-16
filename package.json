@@ -1,0 +1,10 @@
+{
+  "name": "lab-notebook",
+  "private": true,
+  "packageManager": "pnpm@10.21.0",
+  "scripts": {
+    "dev:web": "pnpm --dir apps/web dev",
+    "build:web": "pnpm --dir apps/web build",
+    "preview:web": "pnpm --dir apps/web preview"
+  }
+}
