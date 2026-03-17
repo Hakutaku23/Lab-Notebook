@@ -100,7 +100,10 @@ def serialize_project(project: Project) -> dict:
     }
 
 
-def serialize_record_summary(record: ExperimentRecord) -> dict:
+def serialize_record_summary(
+    record: ExperimentRecord,
+    allowed_actions: list[str] | None = None,
+) -> dict:
     return {
         "id": record.id,
         "title": record.title,
@@ -114,12 +117,16 @@ def serialize_record_summary(record: ExperimentRecord) -> dict:
         "created_by": record.created_by,
         "created_at": record.created_at,
         "updated_at": record.updated_at,
+        "allowed_actions": allowed_actions or [],
     }
 
 
-def serialize_record_detail(record: ExperimentRecord) -> dict:
+def serialize_record_detail(
+    record: ExperimentRecord,
+    allowed_actions: list[str] | None = None,
+) -> dict:
     return {
-        **serialize_record_summary(record),
+        **serialize_record_summary(record, allowed_actions=allowed_actions),
         "values": [
             {
                 "id": value.id,
@@ -133,7 +140,7 @@ def serialize_record_detail(record: ExperimentRecord) -> dict:
                 "created_at": value.created_at,
                 "updated_at": value.updated_at,
             }
-            for value in sorted(record.values, key=lambda item: (item.section_key_snapshot, item.field_key_snapshot))
+            for value in record.values
         ],
         "attachments": [serialize_attachment(item) for item in record.attachments],
     }
@@ -156,7 +163,6 @@ def serialize_version_detail(item: RecordVersion) -> dict:
         **serialize_version_summary(item),
         "snapshot_json": item.snapshot_json,
     }
-
 
 def serialize_audit_log(item: AuditLog) -> dict:
     return {

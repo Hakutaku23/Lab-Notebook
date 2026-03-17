@@ -7,6 +7,7 @@ import type {
   RecordVersionCompareResult,
   RecordVersionDetail,
   RecordVersionSummary,
+  RecordWorkflowPayload,
   RestoreVersionPayload,
   SnapshotCreatePayload,
 } from "../types/api";
@@ -35,6 +36,14 @@ export async function updateRecord(
   payload: RecordUpdatePayload,
 ): Promise<ExperimentRecordDetail> {
   const { data } = await http.put(`/records/${recordId}`, payload);
+  return data;
+}
+
+export async function transitionRecordWorkflow(
+  recordId: string,
+  payload: RecordWorkflowPayload,
+): Promise<ExperimentRecordDetail> {
+  const { data } = await http.post(`/records/${recordId}/workflow`, payload);
   return data;
 }
 

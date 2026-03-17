@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.attachment import AttachmentOut
+
+RecordWorkflowAction = Literal["submit", "withdraw", "approve", "reopen"]
 
 
 class RecordFieldValueIn(BaseModel):
@@ -17,7 +19,6 @@ class RecordFieldValueIn(BaseModel):
 
 class ExperimentRecordCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
-    status: str = Field(default="draft", max_length=50)
     summary: str | None = None
     project_id: UUID
     template_id: UUID
@@ -27,9 +28,13 @@ class ExperimentRecordCreate(BaseModel):
 
 class ExperimentRecordUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
-    status: str | None = Field(default=None, max_length=50)
     summary: str | None = None
     values: list[RecordFieldValueIn] | None = None
+
+
+class RecordWorkflowTransitionIn(BaseModel):
+    action: RecordWorkflowAction
+    comment: str | None = Field(default=None, max_length=500)
 
 
 class RecordFieldValueOut(BaseModel):
@@ -60,6 +65,7 @@ class ExperimentRecordSummaryOut(BaseModel):
     created_by: UUID
     created_at: datetime
     updated_at: datetime
+    allowed_actions: list[RecordWorkflowAction] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 

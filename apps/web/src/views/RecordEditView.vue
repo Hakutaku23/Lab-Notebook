@@ -1,10 +1,11 @@
 ﻿<script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute } from "vue-router";
 
 import AttachmentManager from "../components/AttachmentManager.vue";
 import DynamicTemplateForm from "../components/DynamicTemplateForm.vue";
 import RecordVersionsPanel from "../components/RecordVersionsPanel.vue";
+import RecordWorkflowPanel from "../components/RecordWorkflowPanel.vue";
 import { fetchRecordDetail, updateRecord } from "../api/records";
 import { fetchTemplateDetail } from "../api/templates";
 import type {
@@ -27,9 +28,10 @@ const fieldValues = ref<Record<string, unknown>>({});
 
 const form = reactive({
   title: "",
-  status: "draft",
   summary: "",
 });
+
+const isEditable = computed(() => record.value?.status === "draft");
 
 function normalizeValue(field: TemplateField, value: unknown): unknown {
   if (field.field_type === "number" && typeof value === "string") {
@@ -81,7 +83,6 @@ async function loadRecord() {
     template.value = templateData;
 
     form.title = recordData.title;
-    form.status = recordData.status;
     form.summary = recordData.summary || "";
 
     const nextValues: Record<string, unknown> = {};
@@ -111,6 +112,11 @@ async function loadRecord() {
 async function saveRecord() {
   if (!record.value || !template.value) return;
 
+  if (!isEditable.value) {
+    error.value = "当前状态不允许直接编辑，请先撤回或重新打开记录。";
+    return;
+  }
+
   saving.value = true;
   error.value = "";
   successText.value = "";
@@ -118,11 +124,10 @@ async function saveRecord() {
   try {
     await updateRecord(record.value.id, {
       title: form.title,
-      status: form.status,
       summary: form.summary || undefined,
       values: buildPayloadValues(template.value),
     });
-    successText.value = "记录已保存，系统已自动生成新快照。";
+    successText.value = "草稿已保存，系统已自动生成新快照。";
     await loadRecord();
   } catch (err) {
     console.error(err);
@@ -137,40 +142,44 @@ onMounted(loadRecord);
 
 <template>
   <div class="page">
+    <RecordWorkflowPanel v-if="record" :record="record" @changed="loadRecord" />
+
     <section class="card">
       <div class="section-header">
         <div>
           <h2>编辑实验记录</h2>
-          <p class="muted">保存后会自动生成一条新快照，方便回溯内容变更。</p>
+          <p class="muted">只有 draft 状态允许直接编辑正文；状态流转会自动生成快照并记录审计日志。</p>
         </div>
       </div>
 
       <p v-if="loading" class="muted">正在加载记录...</p>
 
       <template v-else-if="record && template">
+        <p v-if="!isEditable" class="muted">
+          当前记录状态为 {{ record.status }}，正文已冻结。请先通过上方流程按钮撤回或重新打开。
+        </p>
+
         <div class="form-item">
           <label class="label">标题</label>
-          <input v-model="form.title" class="input" type="text" />
+          <input v-model="form.title" class="input" type="text" :disabled="!isEditable" />
         </div>
 
         <div class="form-item">
-          <label class="label">状态</label>
-          <select v-model="form.status" class="input">
-            <option value="draft">draft</option>
-            <option value="submitted">submitted</option>
-            <option value="approved">approved</option>
-          </select>
+          <label class="label">当前状态</label>
+          <input class="input" type="text" :value="record.status" disabled />
         </div>
 
         <div class="form-item">
           <label class="label">摘要</label>
-          <textarea v-model="form.summary" class="textarea" rows="4" />
+          <textarea v-model="form.summary" class="textarea" rows="4" :disabled="!isEditable" />
         </div>
 
-        <DynamicTemplateForm v-model="fieldValues" :template="template" />
+        <div :style="isEditable ? undefined : 'pointer-events: none; opacity: 0.72;'">
+          <DynamicTemplateForm v-model="fieldValues" :template="template" />
+        </div>
 
-        <button class="button" :disabled="saving" @click="saveRecord">
-          {{ saving ? "保存中..." : "保存修改" }}
+        <button class="button" :disabled="saving || !isEditable" @click="saveRecord">
+          {{ saving ? "保存中..." : "保存草稿修改" }}
         </button>
 
         <p v-if="successText" class="muted">{{ successText }}</p>

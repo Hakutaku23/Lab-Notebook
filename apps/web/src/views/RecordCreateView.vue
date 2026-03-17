@@ -29,7 +29,6 @@ const fieldValues = ref<Record<string, unknown>>({});
 const form = reactive({
   title: "",
   summary: "",
-  status: "draft",
   project_id: "",
   template_id: "",
   created_by: "",
@@ -63,7 +62,7 @@ function normalizeValue(field: TemplateField, value: unknown): unknown {
     return "";
   }
 
-  if (field.field_type === "table" || field.field_type === "file") {
+  if (field.field_type === "table" || field.field_type === "file" || field.field_type === "json") {
     try {
       return JSON.parse(trimmed);
     } catch {
@@ -96,7 +95,6 @@ async function submitRecord() {
     const created = await createRecord({
       title: form.title,
       summary: form.summary || undefined,
-      status: form.status,
       project_id: form.project_id,
       template_id: form.template_id,
       created_by: form.created_by || undefined,
@@ -170,7 +168,7 @@ onMounted(async () => {
       <div>
         <p class="eyebrow">Create Record</p>
         <h2>新建实验记录</h2>
-        <p class="muted">记录基础信息、实验过程和结果，后续可继续补充附件与版本快照。</p>
+        <p class="muted">新记录默认创建为草稿，后续可提交审核、补充附件与查看版本快照。</p>
       </div>
     </section>
 
@@ -211,12 +209,8 @@ onMounted(async () => {
         </div>
 
         <div class="form-item">
-          <label class="label">状态</label>
-          <select v-model="form.status" class="input">
-            <option value="draft">draft</option>
-            <option value="submitted">submitted</option>
-            <option value="approved">approved</option>
-          </select>
+          <label class="label">初始状态</label>
+          <input class="input" type="text" value="draft（系统默认）" disabled />
         </div>
 
         <div class="form-item">
@@ -229,17 +223,14 @@ onMounted(async () => {
           <textarea v-model="form.summary" class="textarea" rows="4" />
         </div>
 
-        <DynamicTemplateForm
-          v-model="fieldValues"
-          :template="selectedTemplate"
-        />
+        <DynamicTemplateForm v-model="fieldValues" :template="selectedTemplate" />
 
         <button
           class="button"
           :disabled="submitting || !selectedTemplate"
           @click="submitRecord"
         >
-          {{ submitting ? "提交中..." : "创建实验记录" }}
+          {{ submitting ? "提交中..." : "创建草稿记录" }}
         </button>
 
         <p v-if="error" class="error-text">{{ error }}</p>

@@ -108,9 +108,10 @@ export interface RecordFieldValuePayload {
   note?: string | null;
 }
 
+export type RecordWorkflowAction = "submit" | "withdraw" | "approve" | "reopen";
+
 export interface RecordCreatePayload {
   title: string;
-  status: string;
   summary?: string;
   project_id: string;
   template_id: string;
@@ -120,7 +121,6 @@ export interface RecordCreatePayload {
 
 export interface RecordUpdatePayload {
   title?: string;
-  status?: string;
   summary?: string;
   values?: RecordFieldValuePayload[];
 }
@@ -171,6 +171,11 @@ export interface SnapshotCreatePayload {
   created_by?: string;
 }
 
+export interface RecordWorkflowPayload {
+  action: RecordWorkflowAction;
+  comment?: string;
+}
+
 export interface ExperimentRecordSummary {
   id: string;
   title: string;
@@ -184,6 +189,7 @@ export interface ExperimentRecordSummary {
   created_by: string;
   created_at: string;
   updated_at: string;
+  allowed_actions: RecordWorkflowAction[];
 }
 
 export interface ExperimentRecordDetail extends ExperimentRecordSummary {

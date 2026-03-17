@@ -5,6 +5,7 @@ import { RouterLink, useRoute } from "vue-router";
 import AttachmentManager from "../components/AttachmentManager.vue";
 import AuditLogPanel from "../components/AuditLogPanel.vue";
 import RecordVersionsPanel from "../components/RecordVersionsPanel.vue";
+import RecordWorkflowPanel from "../components/RecordWorkflowPanel.vue";
 
 import { fetchRecordDetail } from "../api/records";
 import { fetchTemplateDetail } from "../api/templates";
@@ -94,6 +95,8 @@ onMounted(loadRecord);
 
         <p><strong>摘要：</strong>{{ record.summary || "暂无摘要" }}</p>
       </section>
+
+      <RecordWorkflowPanel :record="record" @changed="loadRecord" />
 
       <section
         v-for="section in template.sections"
