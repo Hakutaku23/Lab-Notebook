@@ -11,6 +11,13 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=6, max_length=128)
 
 
+class RegisterIn(BaseModel):
+    username: str = Field(min_length=1, max_length=50)
+    email: str = Field(min_length=3, max_length=255)
+    full_name: str | None = Field(default=None, max_length=100)
+    password: str = Field(min_length=6, max_length=128)
+
+
 class CurrentUserOut(BaseModel):
     id: UUID
     username: str

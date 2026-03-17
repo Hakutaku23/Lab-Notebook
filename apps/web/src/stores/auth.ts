@@ -1,7 +1,11 @@
 ﻿import { computed, ref } from "vue";
 import { defineStore } from "pinia";
-import { fetchCurrentUser, login as loginRequest } from "../api/auth";
-import type { AuthUser, LoginPayload } from "../types/api";
+import {
+  fetchCurrentUser,
+  login as loginRequest,
+  register as registerRequest,
+} from "../api/auth";
+import type { AuthUser, LoginPayload, RegisterPayload } from "../types/api";
 import {
   clearStoredAuth,
   getStoredToken,
@@ -78,6 +82,25 @@ export const useAuthStore = defineStore("auth", () => {
     }
   }
 
+  async function register(payload: RegisterPayload) {
+    loading.value = true;
+
+    try {
+      const response = await registerRequest(payload);
+      applySession(response.access_token, response.user);
+
+      if (!response.user) {
+        const me = await fetchCurrentUser();
+        currentUser.value = me;
+        setStoredUser(me);
+      }
+
+      ready.value = true;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function logout() {
     clearSession();
     ready.value = true;
@@ -93,6 +116,7 @@ export const useAuthStore = defineStore("auth", () => {
     isAdmin,
     restoreSession,
     login,
+    register,
     logout,
     clearSession,
   };

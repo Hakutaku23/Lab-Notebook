@@ -3,16 +3,20 @@ import { onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import DynamicTemplateForm from "../components/DynamicTemplateForm.vue";
-import { fetchProjects } from "../api/projects";
 import { createRecord } from "../api/records";
+import { fetchProjects } from "../api/projects";
 import { fetchTemplateByKey, fetchTemplateDetail, fetchTemplates } from "../api/templates";
 import type {
   ExperimentTemplateDetail,
   ExperimentTemplateSummary,
   ProjectItem,
   RecordFieldValuePayload,
-  TemplateField,
 } from "../types/api";
+import { getRecordStatusLabel } from "../utils/record-status";
+import {
+  initializeTemplateFieldValues,
+  normalizeFieldValue,
+} from "../utils/templateFields";
 
 const route = useRoute();
 const router = useRouter();
@@ -26,6 +30,8 @@ const templates = ref<ExperimentTemplateSummary[]>([]);
 const selectedTemplate = ref<ExperimentTemplateDetail | null>(null);
 const fieldValues = ref<Record<string, unknown>>({});
 
+const initialStatus = "draft";
+
 const form = reactive({
   title: "",
   summary: "",
@@ -35,16 +41,7 @@ const form = reactive({
 });
 
 function initializeFieldValues(template: ExperimentTemplateDetail) {
-  const nextValues: Record<string, unknown> = {};
-  template.sections.forEach((section) => {
-    section.fields.forEach((field) => {
-      nextValues[field.id] =
-        field.default_value !== undefined && field.default_value !== null
-          ? field.default_value
-          : "";
-    });
-  });
-  fieldValues.value = nextValues;
+  fieldValues.value = initializeTemplateFieldValues(template);
 }
 
 async function loadTemplate(templateId: string) {
@@ -52,32 +49,11 @@ async function loadTemplate(templateId: string) {
   initializeFieldValues(selectedTemplate.value);
 }
 
-function normalizeValue(field: TemplateField, value: unknown): unknown {
-  if (typeof value !== "string") {
-    return value;
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
-
-  if (field.field_type === "table" || field.field_type === "file" || field.field_type === "json") {
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      return value;
-    }
-  }
-
-  return value;
-}
-
 function buildValuePayload(template: ExperimentTemplateDetail): RecordFieldValuePayload[] {
   return template.sections.flatMap((section) =>
     section.fields.map((field) => ({
       field_id: field.id,
-      value_json: normalizeValue(field, fieldValues.value[field.id]),
+      value_json: normalizeFieldValue(field, fieldValues.value[field.id]),
     })),
   );
 }
@@ -95,6 +71,7 @@ async function submitRecord() {
     const created = await createRecord({
       title: form.title,
       summary: form.summary || undefined,
+      status: initialStatus,
       project_id: form.project_id,
       template_id: form.template_id,
       created_by: form.created_by || undefined,
@@ -115,8 +92,10 @@ watch(
   async (templateId) => {
     if (!templateId) {
       selectedTemplate.value = null;
+      fieldValues.value = {};
       return;
     }
+
     try {
       await loadTemplate(templateId);
     } catch (err) {
@@ -131,11 +110,7 @@ onMounted(async () => {
   error.value = "";
 
   try {
-    const [projectData, templateData] = await Promise.all([
-      fetchProjects(),
-      fetchTemplates(),
-    ]);
-
+    const [projectData, templateData] = await Promise.all([fetchProjects(), fetchTemplates()]);
     projects.value = projectData;
     templates.value = templateData;
 
@@ -166,9 +141,9 @@ onMounted(async () => {
   <div class="page">
     <section class="page-hero">
       <div>
-        <p class="eyebrow">Create Record</p>
+        <p class="eyebrow">新建记录</p>
         <h2>新建实验记录</h2>
-        <p class="muted">新记录默认创建为草稿，后续可提交审核、补充附件与查看版本快照。</p>
+        <p class="muted">记录基础信息、实验过程和结果，附件与审核状态可在后续阶段继续补充。</p>
       </div>
     </section>
 
@@ -176,7 +151,7 @@ onMounted(async () => {
       <div class="section-header">
         <div>
           <h3>记录表单</h3>
-          <p class="muted">当前表单由模板动态生成，附件上传可在详情页继续补充。</p>
+          <p class="muted">当前表单由模板动态生成，新建记录会统一以草稿状态保存。</p>
         </div>
       </div>
 
@@ -185,7 +160,12 @@ onMounted(async () => {
       <template v-else>
         <div class="form-item">
           <label class="label">记录标题</label>
-          <input v-model="form.title" class="input" type="text" placeholder="例如：酸碱滴定实验记录（第一次）" />
+          <input
+            v-model="form.title"
+            class="input"
+            type="text"
+            placeholder="例如：酸碱滴定实验记录（第一次）"
+          />
         </div>
 
         <div class="form-item">
@@ -210,7 +190,12 @@ onMounted(async () => {
 
         <div class="form-item">
           <label class="label">初始状态</label>
-          <input class="input" type="text" value="draft（系统默认）" disabled />
+          <div class="status-display">
+            <span class="badge">{{ getRecordStatusLabel(initialStatus) }}</span>
+            <p class="muted">
+              新建记录默认保存为草稿。提交审核与管理员通过等状态变更，请在后续流程中操作。
+            </p>
+          </div>
         </div>
 
         <div class="form-item">
@@ -225,14 +210,9 @@ onMounted(async () => {
 
         <DynamicTemplateForm v-model="fieldValues" :template="selectedTemplate" />
 
-        <button
-          class="button"
-          :disabled="submitting || !selectedTemplate"
-          @click="submitRecord"
-        >
-          {{ submitting ? "提交中..." : "创建草稿记录" }}
+        <button class="button" :disabled="submitting || !selectedTemplate" @click="submitRecord">
+          {{ submitting ? "提交中..." : "创建实验记录" }}
         </button>
-
         <p v-if="error" class="error-text">{{ error }}</p>
       </template>
     </section>

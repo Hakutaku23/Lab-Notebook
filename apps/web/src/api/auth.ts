@@ -1,4 +1,9 @@
-﻿import type { AuthUser, LoginPayload, LoginResponse } from "../types/api";
+﻿import type {
+  AuthUser,
+  LoginPayload,
+  LoginResponse,
+  RegisterPayload,
+} from "../types/api";
 import { http } from "./http";
 
 function normalizeAuthUser(payload: any): AuthUser | null {
@@ -58,6 +63,11 @@ export async function login(payload: LoginPayload): Promise<LoginResponse> {
     },
   });
 
+  return normalizeLoginResponse(data);
+}
+
+export async function register(payload: RegisterPayload): Promise<LoginResponse> {
+  const { data } = await http.post("/auth/register", payload);
   return normalizeLoginResponse(data);
 }
 

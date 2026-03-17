@@ -31,7 +31,7 @@ def main():
         user = User(
             username="admin",
             email="admin@example.com",
-            full_name="Development Admin",
+            full_name="开发管理员",
             hashed_password=hash_password("admin123456"),
             role="admin",
             is_active=True,

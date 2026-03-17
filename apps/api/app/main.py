@@ -23,8 +23,8 @@ app.add_middleware(
 app.include_router(router, prefix=settings.api_prefix)
 
 
-@app.get("/", summary="Root")
+@app.get("/", summary="根路径")
 def root():
     return {
-        "message": "Lab Notebook API is running"
+        "message": "实验记录系统 API 正在运行"
     }

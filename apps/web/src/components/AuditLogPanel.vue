@@ -1,5 +1,6 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
+
 import { fetchAuditLogs } from "../api/audit";
 import type { AuditLogItem } from "../types/api";
 
@@ -86,7 +87,7 @@ onMounted(() => {
       <div>
         <h3>{{ title }}</h3>
         <p class="muted">
-          {{ showFilters ? "支持按资源、操作人和动作筛选。" : "当前资源的审计轨迹。" }}
+          {{ showFilters ? "支持按资源、操作人和动作筛选。" : "展示当前资源的审计轨迹。" }}
         </p>
       </div>
 
@@ -97,40 +98,35 @@ onMounted(() => {
 
     <form
       v-if="showFilters"
-      style="
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 12px;
-        margin-top: 16px;
-      "
+      class="audit-filter-grid"
       @submit.prevent="loadLogs"
     >
-      <label style="display: grid; gap: 6px;">
+      <label class="form-item">
         <span>资源类型</span>
-        <input v-model="filters.resource_type" type="text" placeholder="如：record / project" />
+        <input v-model="filters.resource_type" type="text" placeholder="例如：record / project" />
       </label>
 
-      <label style="display: grid; gap: 6px;">
+      <label class="form-item">
         <span>资源 ID</span>
         <input v-model="filters.resource_id" type="text" placeholder="UUID" />
       </label>
 
-      <label style="display: grid; gap: 6px;">
+      <label class="form-item">
         <span>操作人 ID</span>
         <input v-model="filters.actor_id" type="text" placeholder="UUID" />
       </label>
 
-      <label style="display: grid; gap: 6px;">
+      <label class="form-item">
         <span>动作</span>
-        <input v-model="filters.action" type="text" placeholder="如：record.updated" />
+        <input v-model="filters.action" type="text" placeholder="例如：record.updated" />
       </label>
 
-      <label style="display: grid; gap: 6px;">
+      <label class="form-item">
         <span>数量上限</span>
         <input v-model.number="filters.limit" type="number" min="1" max="200" />
       </label>
 
-      <div style="display: flex; align-items: end;">
+      <div class="audit-filter-actions">
         <button class="button" type="submit">查询</button>
       </div>
     </form>
@@ -143,7 +139,7 @@ onMounted(() => {
       {{ error }}
     </p>
 
-    <div v-else style="display: grid; gap: 12px; margin-top: 16px;">
+    <div v-else class="stack-gap" style="margin-top: 16px;">
       <p v-if="logs.length === 0" class="muted">当前条件下没有审计日志。</p>
 
       <article
@@ -164,7 +160,7 @@ onMounted(() => {
         </div>
 
         <div class="muted" style="margin-top: 8px;">
-          资源：{{ item.resource_type }} / {{ item.resource_id || "—" }}
+          资源：{{ item.resource_type }} / {{ item.resource_id || "无" }}
         </div>
 
         <p style="margin: 8px 0 0;">{{ item.summary }}</p>

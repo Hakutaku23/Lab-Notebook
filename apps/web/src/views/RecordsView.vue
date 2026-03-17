@@ -10,6 +10,7 @@ import type {
   ExperimentTemplateSummary,
   ProjectItem,
 } from "../types/api";
+import { getRecordStatusLabel } from "../utils/record-status";
 
 const loading = ref(false);
 const error = ref("");
@@ -80,7 +81,7 @@ onMounted(async () => {
   <div class="page">
     <section class="page-hero">
       <div>
-        <p class="eyebrow">Records</p>
+        <p class="eyebrow">实验记录</p>
         <h2>实验记录</h2>
         <p class="muted">按项目、模板和状态筛选记录，快速进入详情和编辑流程。</p>
       </div>
@@ -117,10 +118,10 @@ onMounted(async () => {
         <div class="form-item">
           <label class="label">状态</label>
           <select v-model="filters.status" class="input">
-            <option value="">全部</option>
-            <option value="draft">draft</option>
-            <option value="submitted">submitted</option>
-            <option value="approved">approved</option>
+            <option value="">全部状态</option>
+            <option value="draft">{{ getRecordStatusLabel("draft") }}</option>
+            <option value="submitted">{{ getRecordStatusLabel("submitted") }}</option>
+            <option value="approved">{{ getRecordStatusLabel("approved") }}</option>
           </select>
         </div>
       </div>
@@ -141,7 +142,7 @@ onMounted(async () => {
               <h3>{{ record.title }}</h3>
               <p class="muted">项目：{{ record.project_name || record.project_id }}</p>
               <p class="muted">模板：{{ record.template_name || record.template_id }}</p>
-              <p class="muted">状态：{{ record.status }}</p>
+              <p class="muted">状态：{{ getRecordStatusLabel(record.status) }}</p>
             </div>
 
             <div class="actions">

@@ -24,7 +24,7 @@ def resolve_user_id(db: Session, user_id: UUID | None) -> UUID:
     if fallback_user is None:
         raise HTTPException(
             status_code=400,
-            detail="未找到可用用户。请先执行 scripts/seed_dev_user.py。"
+            detail="未找到可用用户。请先执行 scripts/seed_dev_user.py。",
         )
 
     return fallback_user.id

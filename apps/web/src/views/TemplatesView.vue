@@ -117,10 +117,35 @@ function parseSections(): TemplateSectionPayload[] {
   const parsed = JSON.parse(sectionsText.value || "[]");
 
   if (!Array.isArray(parsed)) {
-    throw new Error("Sections JSON 必须是数组。");
+    throw new Error("分区 JSON 配置必须是数组。");
   }
 
   return parsed as TemplateSectionPayload[];
+}
+
+function shouldCreateVersion(errorLike: any) {
+  const status = errorLike?.response?.status;
+  const detail = String(errorLike?.response?.data?.detail ?? "");
+  return status === 409 || detail.includes("template_requires_version");
+}
+
+async function createVersionFromCurrentForm() {
+  if (!selectedTemplate.value) {
+    throw new Error("请先选择一个模板。")
+  }
+
+  const source = selectedTemplate.value;
+  const sections = parseSections();
+  const nextVersion = source.version + 1;
+
+  return createTemplateVersion(source.id, {
+    key: buildVersionKey(form.key || source.key, nextVersion),
+    name: `${form.name || source.name} v${nextVersion}`,
+    description: form.description || source.description || null,
+    category: form.category || source.category,
+    is_active: form.is_active,
+    sections,
+  });
 }
 
 async function loadLineage(templateId: string) {
@@ -211,18 +236,28 @@ async function handleSave() {
     const sections = parseSections();
 
     if (form.id) {
-      const updated = await updateTemplate(form.id, {
-        name: form.name.trim(),
-        key: form.key.trim(),
-        description: form.description.trim() || "",
-        category: form.category.trim() || "generic",
-        parent_template_id: form.parent_template_id.trim() || null,
-        is_active: form.is_active,
-        sections,
-      });
+      try {
+        const updated = await updateTemplate(form.id, {
+          name: form.name.trim(),
+          key: form.key.trim(),
+          description: form.description.trim() || "",
+          category: form.category.trim() || "generic",
+          parent_template_id: form.parent_template_id.trim() || null,
+          is_active: form.is_active,
+          sections,
+        });
 
-      success.value = "模板已更新。";
-      await loadTemplates(updated.id);
+        success.value = "模板已更新。";
+        await loadTemplates(updated.id);
+      } catch (err: any) {
+        if (!shouldCreateVersion(err) || !selectedTemplate.value) {
+          throw err;
+        }
+
+        const created = await createVersionFromCurrentForm();
+        success.value = `当前模板不可直接修改，已自动派生新版本：${created.name}`;
+        await loadTemplates(created.id);
+      }
     } else {
       const created = await createTemplate({
         name: form.name.trim(),
@@ -258,19 +293,7 @@ async function handleCreateVersion() {
   versioning.value = true;
 
   try {
-    const sections = parseSections();
-    const source = selectedTemplate.value;
-    const nextVersion = source.version + 1;
-
-    const created = await createTemplateVersion(source.id, {
-      key: buildVersionKey(form.key || source.key, nextVersion),
-      name: `${form.name || source.name} v${nextVersion}`,
-      description: form.description || source.description || null,
-      category: form.category || source.category,
-      is_active: form.is_active,
-      sections,
-    });
-
+    const created = await createVersionFromCurrentForm();
     success.value = `已创建新版本：${created.name}`;
     await loadTemplates(created.id);
   } catch (err: any) {
@@ -338,30 +361,22 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section
-      style="
-        display: grid;
-        grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-        gap: 20px;
-        align-items: start;
-      "
-    >
+    <section class="template-layout">
       <section class="card">
         <h3>模板列表</h3>
         <p v-if="loading" class="muted">正在加载模板...</p>
 
-        <div v-else style="display: grid; gap: 10px;">
+        <div v-else class="stack-gap">
           <button
             v-for="item in templates"
             :key="item.id"
             type="button"
-            class="button secondary"
-            style="text-align: left; justify-content: space-between;"
+            class="button secondary template-list-button"
             @click="loadTemplateDetail(item.id)"
           >
             <span>
               <strong>{{ item.name }}</strong>
-              <span class="muted" style="display: block;">{{ item.key }}</span>
+              <span class="muted template-meta">{{ item.key }}</span>
             </span>
             <span class="muted">{{ item.category }} / v{{ item.version }}</span>
           </button>
@@ -372,13 +387,13 @@ onMounted(async () => {
         </div>
       </section>
 
-      <div style="display: grid; gap: 20px;">
+      <div class="stack-gap">
         <section class="card">
           <div class="row-between" style="gap: 16px; align-items: flex-start;">
             <div>
               <h3>{{ form.id ? "编辑模板" : "新建模板" }}</h3>
               <p class="muted">
-                当模板已被实验记录使用时，后端会拒绝直接修改；此时请使用“派生新版本”。
+                当模板已被实验记录使用时，系统会自动派生新版本，而不是直接覆盖旧模板。
               </p>
               <p v-if="selectedTemplate" class="muted">
                 当前选中：{{ selectedTemplate.name }} / {{ selectedTemplate.key }} / v{{ selectedTemplate.version }}
@@ -421,14 +436,14 @@ onMounted(async () => {
 
           <p v-if="detailLoading" class="muted">正在加载模板详情...</p>
 
-          <div style="display: grid; gap: 14px;">
+          <div class="stack-gap">
             <div class="form-item">
               <label class="label">模板名称</label>
               <input v-model="form.name" class="input" type="text" />
             </div>
 
             <div class="form-item">
-              <label class="label">模板 key</label>
+              <label class="label">模板键</label>
               <input v-model="form.key" class="input" type="text" />
             </div>
 
@@ -452,15 +467,13 @@ onMounted(async () => {
               <textarea v-model="form.description" class="textarea" rows="4" />
             </div>
 
-            <div class="form-item">
-              <label class="label">
-                <input v-model="form.is_active" type="checkbox" />
-                启用
-              </label>
-            </div>
+            <label class="checkbox-field">
+              <input v-model="form.is_active" type="checkbox" />
+              <span>启用模板</span>
+            </label>
 
             <div class="form-item">
-              <label class="label">Sections JSON</label>
+              <label class="label">分区 JSON 配置</label>
               <textarea v-model="sectionsText" class="textarea" rows="24" />
             </div>
           </div>
@@ -474,7 +487,7 @@ onMounted(async () => {
             <div>
               <h3>模板谱系</h3>
               <p class="muted">
-                展示当前模板所在版本链，可快速识别父模板、当前模板和后续版本。
+                展示当前模板所在版本链，可快速识别根模板、当前模板和后续版本。
               </p>
             </div>
           </div>
@@ -482,7 +495,7 @@ onMounted(async () => {
           <p v-if="lineageLoading" class="muted">正在加载模板谱系...</p>
 
           <template v-else-if="lineage && lineage.items.length > 0">
-            <div style="display: grid; gap: 10px; margin-top: 12px;">
+            <div class="stack-gap" style="margin-top: 12px;">
               <div
                 v-for="item in lineage.items"
                 :key="item.id"
@@ -493,28 +506,14 @@ onMounted(async () => {
                   <div>
                     <strong>{{ lineageItemLabel(item) }}</strong>
                     <div class="muted">
-                      parent: {{ item.parent_template_id || "无" }}
+                      父模板：{{ item.parent_template_id || "无" }}
                     </div>
                   </div>
 
                   <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <span
-                      v-if="item.id === lineage.root_template_id"
-                      class="muted"
-                    >
-                      根模板
-                    </span>
-                    <span
-                      v-if="item.id === lineage.current_template_id"
-                      class="muted"
-                    >
-                      当前模板
-                    </span>
-                    <button
-                      class="button secondary"
-                      type="button"
-                      @click="loadTemplateDetail(item.id)"
-                    >
+                    <span v-if="item.id === lineage.root_template_id" class="muted">根模板</span>
+                    <span v-if="item.id === lineage.current_template_id" class="muted">当前模板</span>
+                    <button class="button secondary" type="button" @click="loadTemplateDetail(item.id)">
                       查看
                     </button>
                   </div>

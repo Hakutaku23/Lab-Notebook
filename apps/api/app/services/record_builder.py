@@ -76,7 +76,7 @@ def build_record_values(
     if missing_required_fields:
         raise HTTPException(
             status_code=422,
-            detail=f"必填字段未填写：{', '.join(missing_required_fields)}"
+            detail=f"必填字段未填写：{', '.join(missing_required_fields)}",
         )
 
     return built_values

@@ -1,19 +1,23 @@
 ﻿<script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref } from "vue";
 import { useRoute } from "vue-router";
 
 import AttachmentManager from "../components/AttachmentManager.vue";
 import DynamicTemplateForm from "../components/DynamicTemplateForm.vue";
 import RecordVersionsPanel from "../components/RecordVersionsPanel.vue";
-import RecordWorkflowPanel from "../components/RecordWorkflowPanel.vue";
+
 import { fetchRecordDetail, updateRecord } from "../api/records";
 import { fetchTemplateDetail } from "../api/templates";
 import type {
   ExperimentRecordDetail,
   ExperimentTemplateDetail,
   RecordFieldValuePayload,
-  TemplateField,
 } from "../types/api";
+import { getRecordStatusLabel } from "../utils/record-status";
+import {
+  initializeTemplateFieldValues,
+  normalizeFieldValue,
+} from "../utils/templateFields";
 
 const route = useRoute();
 
@@ -21,7 +25,6 @@ const loading = ref(false);
 const saving = ref(false);
 const error = ref("");
 const successText = ref("");
-
 const record = ref<ExperimentRecordDetail | null>(null);
 const template = ref<ExperimentTemplateDetail | null>(null);
 const fieldValues = ref<Record<string, unknown>>({});
@@ -31,38 +34,11 @@ const form = reactive({
   summary: "",
 });
 
-const isEditable = computed(() => record.value?.status === "draft");
-
-function normalizeValue(field: TemplateField, value: unknown): unknown {
-  if (field.field_type === "number" && typeof value === "string") {
-    return value.trim() === "" ? "" : Number(value);
-  }
-
-  if (typeof value !== "string") {
-    return value;
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
-
-  if (field.field_type === "table" || field.field_type === "file" || field.field_type === "json") {
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      return value;
-    }
-  }
-
-  return value;
-}
-
 function buildPayloadValues(tpl: ExperimentTemplateDetail): RecordFieldValuePayload[] {
   return tpl.sections.flatMap((section) =>
     section.fields.map((field) => ({
       field_id: field.id,
-      value_json: normalizeValue(field, fieldValues.value[field.id]),
+      value_json: normalizeFieldValue(field, fieldValues.value[field.id]),
     })),
   );
 }
@@ -81,25 +57,13 @@ async function loadRecord() {
 
     record.value = recordData;
     template.value = templateData;
-
     form.title = recordData.title;
     form.summary = recordData.summary || "";
 
-    const nextValues: Record<string, unknown> = {};
-
-    templateData.sections.forEach((section) => {
-      section.fields.forEach((field) => {
-        nextValues[field.id] =
-          field.default_value !== undefined && field.default_value !== null
-            ? field.default_value
-            : "";
-      });
-    });
-
+    const nextValues = initializeTemplateFieldValues(templateData);
     recordData.values.forEach((item) => {
       nextValues[item.field_id] = item.value_json;
     });
-
     fieldValues.value = nextValues;
   } catch (err) {
     console.error(err);
@@ -112,11 +76,6 @@ async function loadRecord() {
 async function saveRecord() {
   if (!record.value || !template.value) return;
 
-  if (!isEditable.value) {
-    error.value = "当前状态不允许直接编辑，请先撤回或重新打开记录。";
-    return;
-  }
-
   saving.value = true;
   error.value = "";
   successText.value = "";
@@ -127,11 +86,12 @@ async function saveRecord() {
       summary: form.summary || undefined,
       values: buildPayloadValues(template.value),
     });
-    successText.value = "草稿已保存，系统已自动生成新快照。";
+
+    successText.value = "记录已保存，系统已自动生成新的历史快照。";
     await loadRecord();
   } catch (err) {
     console.error(err);
-    error.value = "记录保存失败，请检查必填字段。";
+    error.value = "记录保存失败，请检查必填字段是否完整。";
   } finally {
     saving.value = false;
   }
@@ -142,44 +102,39 @@ onMounted(loadRecord);
 
 <template>
   <div class="page">
-    <RecordWorkflowPanel v-if="record" :record="record" @changed="loadRecord" />
-
     <section class="card">
       <div class="section-header">
         <div>
           <h2>编辑实验记录</h2>
-          <p class="muted">只有 draft 状态允许直接编辑正文；状态流转会自动生成快照并记录审计日志。</p>
+          <p class="muted">保存后会自动生成一条新快照，便于回溯内容变更。</p>
         </div>
       </div>
 
       <p v-if="loading" class="muted">正在加载记录...</p>
 
       <template v-else-if="record && template">
-        <p v-if="!isEditable" class="muted">
-          当前记录状态为 {{ record.status }}，正文已冻结。请先通过上方流程按钮撤回或重新打开。
-        </p>
-
         <div class="form-item">
           <label class="label">标题</label>
-          <input v-model="form.title" class="input" type="text" :disabled="!isEditable" />
+          <input v-model="form.title" class="input" type="text" />
         </div>
 
         <div class="form-item">
           <label class="label">当前状态</label>
-          <input class="input" type="text" :value="record.status" disabled />
+          <div class="status-display">
+            <span class="badge">{{ getRecordStatusLabel(record.status) }}</span>
+            <p class="muted">状态流转请在详情页的流程面板中操作，编辑页仅负责内容修改。</p>
+          </div>
         </div>
 
         <div class="form-item">
           <label class="label">摘要</label>
-          <textarea v-model="form.summary" class="textarea" rows="4" :disabled="!isEditable" />
+          <textarea v-model="form.summary" class="textarea" rows="4" />
         </div>
 
-        <div :style="isEditable ? undefined : 'pointer-events: none; opacity: 0.72;'">
-          <DynamicTemplateForm v-model="fieldValues" :template="template" />
-        </div>
+        <DynamicTemplateForm v-model="fieldValues" :template="template" />
 
-        <button class="button" :disabled="saving || !isEditable" @click="saveRecord">
-          {{ saving ? "保存中..." : "保存草稿修改" }}
+        <button class="button" :disabled="saving" @click="saveRecord">
+          {{ saving ? "保存中..." : "保存修改" }}
         </button>
 
         <p v-if="successText" class="muted">{{ successText }}</p>
@@ -187,12 +142,7 @@ onMounted(loadRecord);
       </template>
     </section>
 
-    <AttachmentManager
-      v-if="record"
-      :record-id="record.id"
-      @changed="loadRecord"
-    />
-
-    <RecordVersionsPanel v-if="record" :record-id="record.id" @restored="loadRecord" />
+    <AttachmentManager v-if="record" :record-id="record.id" @changed="loadRecord" />
+    <RecordVersionsPanel v-if="record" :record-id="record.id" />
   </div>
 </template>

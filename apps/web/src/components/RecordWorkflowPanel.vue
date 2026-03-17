@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, ref } from "vue";
 
 import { transitionRecordWorkflow } from "../api/records";
@@ -6,6 +6,7 @@ import type {
   ExperimentRecordDetail,
   RecordWorkflowAction,
 } from "../types/api";
+import { getRecordStatusLabel } from "../utils/record-status";
 
 const props = defineProps<{
   record: ExperimentRecordDetail;
@@ -37,29 +38,16 @@ function actionLabel(action: RecordWorkflowAction) {
   }
 }
 
-function statusText(status: string) {
-  switch (status) {
-    case "draft":
-      return "草稿";
-    case "submitted":
-      return "待审核";
-    case "approved":
-      return "已通过";
-    default:
-      return status;
-  }
-}
-
 function statusHint(status: string) {
   switch (status) {
     case "draft":
-      return "可继续编辑正文，也可提交审核。";
+      return "当前仍可继续编辑正文，也可以提交审核。";
     case "submitted":
       return "正文已冻结，等待项目负责人或管理员审核。";
     case "approved":
-      return "已通过审核；如需改动，请重新打开为草稿。";
+      return "记录已通过审核；如需继续修改，请先重新打开为草稿。";
     default:
-      return "未知状态。";
+      return "当前状态暂未定义。";
   }
 }
 
@@ -92,7 +80,7 @@ async function runAction(action: RecordWorkflowAction) {
       <div>
         <h3>记录流程</h3>
         <p class="muted">
-          当前状态：<strong>{{ statusText(record.status) }}</strong>
+          当前状态：<strong>{{ getRecordStatusLabel(record.status) }}</strong>
         </p>
         <p class="muted">{{ statusHint(record.status) }}</p>
       </div>
@@ -105,7 +93,7 @@ async function runAction(action: RecordWorkflowAction) {
           v-model="comment"
           class="input"
           type="text"
-          placeholder="例如：内容补充完成，提交项目负责人审核"
+          placeholder="例如：内容已补充完整，提交负责人审核"
         />
       </div>
 

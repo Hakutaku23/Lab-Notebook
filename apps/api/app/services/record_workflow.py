@@ -30,7 +30,7 @@ WORKFLOW_ACTION_META: dict[RecordWorkflowAction, dict[str, str]] = {
     "withdraw": {
         "from": RECORD_STATUS_SUBMITTED,
         "to": RECORD_STATUS_DRAFT,
-        "label": "撤回草稿",
+        "label": "撤回为草稿",
         "audit_action": "record.workflow.withdraw",
     },
     "approve": {

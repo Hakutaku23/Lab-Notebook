@@ -4,17 +4,17 @@ import { RouterLink, useRoute } from "vue-router";
 
 import AttachmentManager from "../components/AttachmentManager.vue";
 import AuditLogPanel from "../components/AuditLogPanel.vue";
-import RecordVersionsPanel from "../components/RecordVersionsPanel.vue";
+import RecordFieldValuePreview from "../components/RecordFieldValuePreview.vue";
 import RecordWorkflowPanel from "../components/RecordWorkflowPanel.vue";
-
+import RecordVersionsPanel from "../components/RecordVersionsPanel.vue";
 import { fetchRecordDetail } from "../api/records";
 import { fetchTemplateDetail } from "../api/templates";
-
 import type {
   ExperimentRecordDetail,
   ExperimentTemplateDetail,
   RecordFieldValueItem,
 } from "../types/api";
+import { getRecordStatusLabel } from "../utils/record-status";
 
 const route = useRoute();
 
@@ -30,16 +30,6 @@ const valueMap = computed<Record<string, RecordFieldValueItem>>(() => {
   });
   return map;
 });
-
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined) {
-    return "无";
-  }
-  if (typeof value === "string") {
-    return value || "无";
-  }
-  return JSON.stringify(value, null, 2);
-}
 
 async function loadRecord() {
   const recordId = String(route.params.id || "");
@@ -82,7 +72,7 @@ onMounted(loadRecord);
             <h2>{{ record.title }}</h2>
             <p class="muted">项目：{{ record.project_name || record.project_id }}</p>
             <p class="muted">模板：{{ record.template_name || record.template_id }}</p>
-            <p class="muted">状态：{{ record.status }}</p>
+            <p class="muted">状态：{{ getRecordStatusLabel(record.status) }}</p>
           </div>
 
           <div class="actions">
@@ -97,28 +87,20 @@ onMounted(loadRecord);
       </section>
 
       <RecordWorkflowPanel :record="record" @changed="loadRecord" />
-
-      <section
-        v-for="section in template.sections"
-        :key="section.id"
-        class="card"
-      >
+      <section v-for="section in template.sections" :key="section.id" class="card">
         <h3>{{ section.title }}</h3>
+        <p v-if="section.description" class="muted">{{ section.description }}</p>
 
-        <div
-          v-for="field in section.fields"
-          :key="field.id"
-          class="detail-item"
-        >
+        <div v-for="field in section.fields" :key="field.id" class="detail-item">
           <div class="detail-label">{{ field.label }}</div>
-          <pre class="detail-value">{{ formatValue(valueMap[field.id]?.value_json) }}</pre>
+          <div class="detail-value-box">
+            <RecordFieldValuePreview :field="field" :value="valueMap[field.id]?.value_json" />
+          </div>
         </div>
       </section>
 
       <AttachmentManager :record-id="record.id" @changed="loadRecord" />
-
       <RecordVersionsPanel :record-id="record.id" @restored="loadRecord" />
-
       <AuditLogPanel
         title="当前记录审计日志"
         :initial-resource-type="'record'"
@@ -127,3 +109,12 @@ onMounted(loadRecord);
     </template>
   </div>
 </template>
+
+<style scoped>
+.detail-value-box {
+  border: 1px solid #d7dbe7;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fafbfe;
+}
+</style>

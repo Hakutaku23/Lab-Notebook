@@ -6,7 +6,7 @@ from app.db.session import SessionLocal
 router = APIRouter()
 
 
-@router.get("/health", summary="Health check")
+@router.get("/health", summary="服务健康检查")
 def health_check():
     return {
         "status": "ok",
@@ -14,7 +14,7 @@ def health_check():
     }
 
 
-@router.get("/health/db", summary="Database health check")
+@router.get("/health/db", summary="数据库健康检查")
 def db_health_check():
     with SessionLocal() as session:
         session.execute(text("SELECT 1"))

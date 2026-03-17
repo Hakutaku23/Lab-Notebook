@@ -77,7 +77,7 @@ onMounted(loadProjects);
   <div class="page">
     <section class="page-hero">
       <div>
-        <p class="eyebrow">Projects</p>
+        <p class="eyebrow">项目管理</p>
         <h2>项目工作台</h2>
         <p class="muted">先建立项目，再基于项目组织实验记录和模板使用范围。</p>
       </div>
@@ -88,7 +88,7 @@ onMounted(loadProjects);
       <div class="section-header">
         <div>
           <h3>创建项目</h3>
-          <p class="muted">`owner_id` 可留空，默认会使用当前登录用户。</p>
+          <p class="muted">负责人 ID 可留空，默认会使用当前登录用户。</p>
         </div>
       </div>
 
@@ -108,8 +108,8 @@ onMounted(loadProjects);
       </div>
 
       <div class="form-item">
-        <label class="label">Owner ID（可选）</label>
-        <input v-model="form.owner_id" class="input" type="text" placeholder="默认当前用户" />
+        <label class="label">负责人 ID（可选）</label>
+        <input v-model="form.owner_id" class="input" type="text" placeholder="留空则使用当前用户" />
       </div>
 
       <button class="button" :disabled="submitting || !form.name.trim()" @click="submitProject">
@@ -137,7 +137,7 @@ onMounted(loadProjects);
             <div>
               <h3>{{ project.name }}</h3>
               <p class="muted">编码：{{ project.code || "未设置" }}</p>
-              <p class="muted">ID：{{ project.id }}</p>
+              <p class="muted">项目 ID：{{ project.id }}</p>
             </div>
 
             <div class="actions">

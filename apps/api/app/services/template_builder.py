@@ -6,24 +6,11 @@ from fastapi import HTTPException
 
 from app.models.template import ExperimentTemplate, TemplateField, TemplateSection
 from app.schemas.template import TemplateFieldIn, TemplateSectionIn
-
-ALLOWED_FIELD_TYPES = {
-    "text",
-    "date",
-    "textarea",
-    "richtext",
-    "table",
-    "file",
-    "number",
-    "select",
-    "checkbox",
-    "json",
-}
+from app.services.field_registry import ALLOWED_FIELD_TYPES, is_supported_field_type
 
 
 def validate_template_sections(sections: list[TemplateSectionIn]) -> None:
     section_keys: set[str] = set()
-
     for section in sections:
         if section.key in section_keys:
             raise HTTPException(status_code=422, detail=f"重复的 section key: {section.key}")
@@ -38,10 +25,14 @@ def validate_template_sections(sections: list[TemplateSectionIn]) -> None:
                 )
             field_keys.add(field.key)
 
-            if field.field_type not in ALLOWED_FIELD_TYPES:
+            if not is_supported_field_type(field.field_type):
+                supported = ", ".join(sorted(ALLOWED_FIELD_TYPES))
                 raise HTTPException(
                     status_code=422,
-                    detail=f"字段 {field.key} 的 field_type 不受支持: {field.field_type}",
+                    detail=(
+                        f"字段 {field.key} 的 field_type 不受支持: {field.field_type}。"
+                        f" 当前支持：{supported}"
+                    ),
                 )
 
 
@@ -81,7 +72,6 @@ def replace_template_sections(
 
 def export_template_sections(template: ExperimentTemplate) -> list[TemplateSectionIn]:
     exported: list[TemplateSectionIn] = []
-
     for section in template.sections:
         exported.append(
             TemplateSectionIn(
@@ -108,5 +98,4 @@ def export_template_sections(template: ExperimentTemplate) -> list[TemplateSecti
                 ],
             )
         )
-
     return exported

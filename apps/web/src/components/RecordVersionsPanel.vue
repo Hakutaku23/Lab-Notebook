@@ -1,5 +1,6 @@
 ﻿<script setup lang="ts">
 import { reactive, ref, watch } from "vue";
+
 import {
   compareRecordVersions,
   createManualSnapshot,
@@ -63,14 +64,24 @@ function versionLabel(item: RecordVersionSummary) {
   return `v${item.version_no} · ${formatTime(item.created_at)}`;
 }
 
+function resetSelectedVersion() {
+  selectedVersion.value = null;
+  detailLoading.value = false;
+  restoreComment.value = "";
+  restoreError.value = "";
+  restoreSuccess.value = "";
+}
+
 async function loadSelectedVersion(versionId: string) {
   if (!versionId) {
-    selectedVersion.value = null;
+    resetSelectedVersion();
     return;
   }
 
   detailLoading.value = true;
   error.value = "";
+  restoreError.value = "";
+  restoreSuccess.value = "";
 
   try {
     selectedVersion.value = await fetchRecordVersionDetail(props.recordId, versionId);
@@ -113,7 +124,7 @@ async function runCompare() {
   }
 }
 
-async function refreshVersions(preferredVersionId?: string) {
+async function refreshVersions() {
   loading.value = true;
   error.value = "";
 
@@ -122,28 +133,15 @@ async function refreshVersions(preferredVersionId?: string) {
     versions.value = list;
 
     if (list.length === 0) {
-      selectedVersion.value = null;
+      resetSelectedVersion();
       fromVersionId.value = "";
       toVersionId.value = "";
       compareResult.value = null;
       return;
     }
 
-    const latestVersion = list[0];
-    if (!latestVersion) {
-      selectedVersion.value = null;
-      return;
-    }
-
-    const selectedId =
-      preferredVersionId ||
-      selectedVersion.value?.id ||
-      latestVersion.id;
-
-    await loadSelectedVersion(selectedId);
-
     if (!toVersionId.value || !list.some((item) => item.id === toVersionId.value)) {
-      toVersionId.value = latestVersion.id;
+      toVersionId.value = list[0]?.id || "";
     }
 
     if (
@@ -152,6 +150,13 @@ async function refreshVersions(preferredVersionId?: string) {
       fromVersionId.value === toVersionId.value
     ) {
       fromVersionId.value = list[1]?.id || "";
+    }
+
+    if (
+      selectedVersion.value &&
+      !list.some((item) => item.id === selectedVersion.value?.id)
+    ) {
+      resetSelectedVersion();
     }
 
     if (fromVersionId.value && toVersionId.value && fromVersionId.value !== toVersionId.value) {
@@ -172,12 +177,13 @@ async function handleCreateSnapshot() {
   error.value = "";
 
   try {
-    const created = await createManualSnapshot(props.recordId, {
+    await createManualSnapshot(props.recordId, {
       comment: snapshotForm.comment || undefined,
     });
 
     snapshotForm.comment = "";
-    await refreshVersions(created.id);
+    resetSelectedVersion();
+    await refreshVersions();
   } catch (err) {
     console.error(err);
     error.value = "手动创建快照失败。";
@@ -208,7 +214,7 @@ async function handleRestoreVersion() {
     restoreSuccess.value = `已恢复为 v${sourceVersionNo}，系统已自动生成新的当前版本。`;
     emit("restored", restored);
 
-    selectedVersion.value = null;
+    resetSelectedVersion();
     await refreshVersions();
   } catch (err) {
     console.error(err);
@@ -224,11 +230,8 @@ watch(
     compareResult.value = null;
     fromVersionId.value = "";
     toVersionId.value = "";
-    selectedVersion.value = null;
     snapshotForm.comment = "";
-    restoreComment.value = "";
-    restoreError.value = "";
-    restoreSuccess.value = "";
+    resetSelectedVersion();
     void refreshVersions();
   },
   { immediate: true },
@@ -282,7 +285,7 @@ watch(
           <div class="row-between" style="gap: 16px; align-items: flex-start;">
             <div>
               <strong>版本列表</strong>
-              <div class="muted">点击任一版本可查看完整快照。</div>
+              <div class="muted">点击任一版本后，才会在下方展开完整快照。</div>
             </div>
           </div>
 
@@ -386,7 +389,7 @@ watch(
           </template>
         </div>
 
-        <div class="card" style="padding: 16px; margin: 0;">
+        <div v-if="detailLoading || selectedVersion" class="card" style="padding: 16px; margin: 0;">
           <strong>当前查看快照</strong>
 
           <p v-if="detailLoading" class="muted" style="margin-top: 12px;">
@@ -445,8 +448,6 @@ JSON.stringify(selectedVersion.snapshot_json, null, 2)
               </p>
             </div>
           </template>
-
-          <p v-else class="muted" style="margin-top: 12px;">尚未选择版本。</p>
         </div>
       </div>
     </template>

@@ -1,4 +1,4 @@
-export interface TemplateField {
+﻿export interface TemplateField {
   id: string;
   key: string;
   label: string;
@@ -108,10 +108,9 @@ export interface RecordFieldValuePayload {
   note?: string | null;
 }
 
-export type RecordWorkflowAction = "submit" | "withdraw" | "approve" | "reopen";
-
 export interface RecordCreatePayload {
   title: string;
+  status: string;
   summary?: string;
   project_id: string;
   template_id: string;
@@ -121,8 +120,16 @@ export interface RecordCreatePayload {
 
 export interface RecordUpdatePayload {
   title?: string;
+  status?: string;
   summary?: string;
   values?: RecordFieldValuePayload[];
+}
+
+export type RecordWorkflowAction = "submit" | "withdraw" | "approve" | "reopen";
+
+export interface RecordWorkflowPayload {
+  action: RecordWorkflowAction;
+  comment?: string | null;
 }
 
 export interface RecordFieldValueItem {
@@ -171,9 +178,8 @@ export interface SnapshotCreatePayload {
   created_by?: string;
 }
 
-export interface RecordWorkflowPayload {
-  action: RecordWorkflowAction;
-  comment?: string;
+export interface RestoreVersionPayload {
+  comment?: string | null;
 }
 
 export interface ExperimentRecordSummary {
@@ -189,12 +195,12 @@ export interface ExperimentRecordSummary {
   created_by: string;
   created_at: string;
   updated_at: string;
-  allowed_actions: RecordWorkflowAction[];
 }
 
 export interface ExperimentRecordDetail extends ExperimentRecordSummary {
   values: RecordFieldValueItem[];
   attachments: AttachmentItem[];
+  allowed_actions?: RecordWorkflowAction[];
 }
 
 export interface AuditLogItem {
@@ -248,6 +254,13 @@ export interface LoginPayload {
   password: string;
 }
 
+export interface RegisterPayload {
+  username: string;
+  email: string;
+  full_name?: string | null;
+  password: string;
+}
+
 export interface LoginResponse {
   access_token: string;
   token_type: string;
@@ -277,8 +290,4 @@ export interface TemplateLineage {
   root_template_id: string;
   current_template_id: string;
   items: ExperimentTemplateSummary[];
-}
-
-export interface RestoreVersionPayload {
-  comment?: string;
 }
