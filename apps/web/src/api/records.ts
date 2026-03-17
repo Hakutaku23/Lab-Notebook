@@ -7,6 +7,7 @@ import type {
   RecordVersionCompareResult,
   RecordVersionDetail,
   RecordVersionSummary,
+  RestoreVersionPayload,
   SnapshotCreatePayload,
 } from "../types/api";
 
@@ -29,7 +30,10 @@ export async function createRecord(payload: RecordCreatePayload): Promise<Experi
   return data;
 }
 
-export async function updateRecord(recordId: string, payload: RecordUpdatePayload): Promise<ExperimentRecordDetail> {
+export async function updateRecord(
+  recordId: string,
+  payload: RecordUpdatePayload,
+): Promise<ExperimentRecordDetail> {
   const { data } = await http.put(`/records/${recordId}`, payload);
   return data;
 }
@@ -43,7 +47,10 @@ export async function fetchRecordVersions(recordId: string): Promise<RecordVersi
   return data;
 }
 
-export async function fetchRecordVersionDetail(recordId: string, versionId: string): Promise<RecordVersionDetail> {
+export async function fetchRecordVersionDetail(
+  recordId: string,
+  versionId: string,
+): Promise<RecordVersionDetail> {
   const { data } = await http.get(`/records/${recordId}/versions/${versionId}`);
   return data;
 }
@@ -54,7 +61,10 @@ export async function compareRecordVersions(
   toVersionId: string,
 ): Promise<RecordVersionCompareResult> {
   const { data } = await http.get(`/records/${recordId}/versions/compare`, {
-    params: { from_version_id: fromVersionId, to_version_id: toVersionId },
+    params: {
+      from_version_id: fromVersionId,
+      to_version_id: toVersionId,
+    },
   });
   return data;
 }
@@ -64,5 +74,14 @@ export async function createManualSnapshot(
   payload: SnapshotCreatePayload,
 ): Promise<RecordVersionDetail> {
   const { data } = await http.post(`/records/${recordId}/versions/snapshot`, payload);
+  return data;
+}
+
+export async function restoreRecordVersion(
+  recordId: string,
+  versionId: string,
+  payload: RestoreVersionPayload,
+): Promise<ExperimentRecordDetail> {
+  const { data } = await http.post(`/records/${recordId}/versions/${versionId}/restore`, payload);
   return data;
 }

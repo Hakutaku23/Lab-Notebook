@@ -5,8 +5,10 @@ import {
   createManualSnapshot,
   fetchRecordVersionDetail,
   fetchRecordVersions,
+  restoreRecordVersion,
 } from "../api/records";
 import type {
+  ExperimentRecordDetail,
   RecordVersionCompareResult,
   RecordVersionDetail,
   RecordVersionSummary,
@@ -16,13 +18,20 @@ const props = defineProps<{
   recordId: string;
 }>();
 
+const emit = defineEmits<{
+  restored: [ExperimentRecordDetail];
+}>();
+
 const loading = ref(false);
 const detailLoading = ref(false);
 const creating = ref(false);
 const comparing = ref(false);
+const restoring = ref(false);
 
 const error = ref("");
 const compareError = ref("");
+const restoreError = ref("");
+const restoreSuccess = ref("");
 
 const versions = ref<RecordVersionSummary[]>([]);
 const selectedVersion = ref<RecordVersionDetail | null>(null);
@@ -30,6 +39,7 @@ const compareResult = ref<RecordVersionCompareResult | null>(null);
 
 const fromVersionId = ref("");
 const toVersionId = ref("");
+const restoreComment = ref("");
 
 const snapshotForm = reactive({
   comment: "",
@@ -176,6 +186,38 @@ async function handleCreateSnapshot() {
   }
 }
 
+async function handleRestoreVersion() {
+  if (!selectedVersion.value) {
+    restoreError.value = "请先选择要恢复的版本。";
+    return;
+  }
+
+  const sourceVersionId = selectedVersion.value.id;
+  const sourceVersionNo = selectedVersion.value.version_no;
+
+  restoring.value = true;
+  restoreError.value = "";
+  restoreSuccess.value = "";
+
+  try {
+    const restored = await restoreRecordVersion(props.recordId, sourceVersionId, {
+      comment: restoreComment.value || undefined,
+    });
+
+    restoreComment.value = "";
+    restoreSuccess.value = `已恢复为 v${sourceVersionNo}，系统已自动生成新的当前版本。`;
+    emit("restored", restored);
+
+    selectedVersion.value = null;
+    await refreshVersions();
+  } catch (err) {
+    console.error(err);
+    restoreError.value = "历史版本恢复失败。";
+  } finally {
+    restoring.value = false;
+  }
+}
+
 watch(
   () => props.recordId,
   () => {
@@ -184,6 +226,9 @@ watch(
     toVersionId.value = "";
     selectedVersion.value = null;
     snapshotForm.comment = "";
+    restoreComment.value = "";
+    restoreError.value = "";
+    restoreSuccess.value = "";
     void refreshVersions();
   },
   { immediate: true },
@@ -357,6 +402,48 @@ watch(
             <pre class="detail-value" style="margin-top: 12px;">{{
 JSON.stringify(selectedVersion.snapshot_json, null, 2)
             }}</pre>
+
+            <div
+              style="
+                display: grid;
+                gap: 12px;
+                margin-top: 16px;
+                padding-top: 16px;
+                border-top: 1px solid rgba(148, 163, 184, 0.25);
+              "
+            >
+              <div>
+                <strong>恢复为当前快照</strong>
+                <div class="muted">
+                  会覆盖当前记录的标题、状态、摘要与字段值，并自动生成新快照；附件文件不会回滚。
+                </div>
+              </div>
+
+              <input
+                v-model="restoreComment"
+                type="text"
+                placeholder="恢复说明，例如：回退到审核前版本"
+              />
+
+              <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                <button
+                  class="button danger"
+                  type="button"
+                  :disabled="restoring"
+                  @click="handleRestoreVersion"
+                >
+                  {{ restoring ? "恢复中..." : `恢复为 v${selectedVersion.version_no}` }}
+                </button>
+
+                <span v-if="restoreSuccess" class="muted">
+                  {{ restoreSuccess }}
+                </span>
+              </div>
+
+              <p v-if="restoreError" class="error-text">
+                {{ restoreError }}
+              </p>
+            </div>
           </template>
 
           <p v-else class="muted" style="margin-top: 12px;">尚未选择版本。</p>

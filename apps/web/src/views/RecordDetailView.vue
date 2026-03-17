@@ -114,7 +114,7 @@ onMounted(loadRecord);
 
       <AttachmentManager :record-id="record.id" @changed="loadRecord" />
 
-      <RecordVersionsPanel :record-id="record.id" />
+      <RecordVersionsPanel :record-id="record.id" @restored="loadRecord" />
 
       <AuditLogPanel
         title="当前记录审计日志"

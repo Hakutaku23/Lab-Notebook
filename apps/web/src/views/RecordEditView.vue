@@ -184,9 +184,6 @@ onMounted(loadRecord);
       @changed="loadRecord"
     />
 
-    <RecordVersionsPanel
-      v-if="record"
-      :record-id="record.id"
-    />
+    <RecordVersionsPanel v-if="record" :record-id="record.id" @restored="loadRecord" />
   </div>
 </template>

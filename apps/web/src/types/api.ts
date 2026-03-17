@@ -272,3 +272,7 @@ export interface TemplateLineage {
   current_template_id: string;
   items: ExperimentTemplateSummary[];
 }
+
+export interface RestoreVersionPayload {
+  comment?: string;
+}

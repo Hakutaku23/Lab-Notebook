@@ -12,6 +12,10 @@ class SnapshotCreateIn(BaseModel):
     created_by: UUID | None = None
 
 
+class RestoreVersionIn(BaseModel):
+    comment: str | None = Field(default=None, max_length=500)
+
+
 class RecordVersionSummaryOut(BaseModel):
     id: UUID
     record_id: UUID
