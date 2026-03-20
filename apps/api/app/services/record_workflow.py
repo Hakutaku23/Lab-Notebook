@@ -81,7 +81,10 @@ def can_approve_record(
 ) -> bool:
     if user.role == "admin":
         return True
-    return _project_owner_id(record, project) == user.id
+    owner_id = _project_owner_id(record, project)
+    if owner_id != user.id:
+        return False
+    return record.created_by != user.id
 
 
 def ensure_record_editable(record: ExperimentRecord) -> None:
@@ -121,6 +124,19 @@ def get_allowed_record_actions(
     return actions
 
 
+
+
+def workflow_comment_required(action: RecordWorkflowAction) -> bool:
+    return action in {"withdraw", "approve", "reopen"}
+
+
+def validate_workflow_comment(action: RecordWorkflowAction, comment: str | None) -> None:
+    if workflow_comment_required(action) and not (comment or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="当前流程动作必须填写审核意见或流转说明。",
+        )
+
 def get_workflow_action_label(action: RecordWorkflowAction) -> str:
     return WORKFLOW_ACTION_META[action]["label"]
 
@@ -134,11 +150,13 @@ def transition_record_status(
     record: ExperimentRecord,
     action: RecordWorkflowAction,
     project: Project | None = None,
+    comment: str | None = None,
 ) -> tuple[str, str]:
     meta = WORKFLOW_ACTION_META.get(action)
     if meta is None:
         raise HTTPException(status_code=400, detail="不支持的工作流动作。")
 
+    validate_workflow_comment(action, comment)
     current_status = ensure_valid_record_status(record.status)
     expected_from = meta["from"]
     next_status = meta["to"]

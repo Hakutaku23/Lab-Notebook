@@ -61,18 +61,35 @@ async function runTask(task: "record_summary" | "record_polish") {
     });
 
     resultText.value = result.content.trim();
-    if (props.editable) {
-      emit("update:summary", resultText.value);
-      successText.value = task === "record_summary" ? "AI 结果已写入摘要输入框。" : "润色结果已写入摘要输入框。";
-    } else {
-      successText.value = task === "record_summary" ? "AI 已生成摘要建议。" : "AI 已生成润色建议。";
-    }
+    successText.value = props.editable
+      ? task === "record_summary"
+        ? "AI 已生成摘要建议，可选择覆盖或追加到当前摘要。"
+        : "AI 已生成润色建议，可选择覆盖或追加到当前摘要。"
+      : task === "record_summary"
+        ? "AI 已生成摘要建议。"
+        : "AI 已生成润色建议。";
   } catch (err: any) {
     console.error(err);
     error.value = err?.response?.data?.detail || err?.message || "AI 摘要处理失败，请检查模型配置。";
   } finally {
     loading.value = false;
   }
+}
+function replaceSummary() {
+  if (!props.editable || !resultText.value) return;
+  emit("update:summary", resultText.value);
+  successText.value = "AI 结果已覆盖当前摘要。";
+}
+
+function appendSummary() {
+  if (!props.editable || !resultText.value) return;
+  const nextValue = props.summary.trim()
+    ? `${props.summary.trim()}
+
+${resultText.value}`
+    : resultText.value;
+  emit("update:summary", nextValue);
+  successText.value = "AI 结果已追加到当前摘要。";
 }
 </script>
 
@@ -112,6 +129,10 @@ async function runTask(task: "record_summary" | "record_polish") {
     <div v-if="resultText" class="form-item">
       <label class="label">{{ editable ? "最近一次 AI 结果" : "摘要建议" }}</label>
       <textarea class="textarea ai-result-area" :value="resultText" rows="7" readonly />
+      <div v-if="editable" class="actions">
+        <button class="button secondary" type="button" @click="replaceSummary">覆盖摘要</button>
+        <button class="button secondary" type="button" @click="appendSummary">追加到摘要</button>
+      </div>
     </div>
   </section>
 </template>

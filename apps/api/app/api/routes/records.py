@@ -20,7 +20,12 @@ from app.schemas.record import (
     RecordWorkflowTransitionIn,
 )
 from app.services.audit import write_audit_log
-from app.services.permissions import ensure_project_access, ensure_record_access
+from app.services.permissions import (
+    ensure_project_access,
+    ensure_record_access,
+    ensure_record_delete_access,
+    ensure_record_write_access,
+)
 from app.services.record_builder import build_record_values
 from app.services.record_workflow import (
     RECORD_STATUS_DRAFT,
@@ -194,6 +199,7 @@ def update_record(
 ):
     record = get_record_detail_entity(db, record_id)
     ensure_record_access(current_user, record, project=record.project)
+    ensure_record_write_access(current_user, record, project=record.project)
     ensure_record_editable(record)
 
     before = {
@@ -256,6 +262,7 @@ def transition_record_workflow(
         record,
         payload.action,
         project=record.project,
+        comment=payload.comment,
     )
 
     action_label = get_workflow_action_label(payload.action)
@@ -280,6 +287,9 @@ def transition_record_workflow(
             "before_status": before_status,
             "after_status": after_status,
             "comment": payload.comment,
+            "actor_role": current_user.role,
+            "record_created_by": str(record.created_by),
+            "project_owner_id": str(record.project.owner_id) if record.project else None,
         },
     )
 
@@ -303,6 +313,7 @@ def delete_record(
 
     project = db.get(Project, record.project_id)
     ensure_record_access(current_user, record, project=project)
+    ensure_record_delete_access(current_user, record, project=project)
 
     write_audit_log(
         db,

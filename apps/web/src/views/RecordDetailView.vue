@@ -6,6 +6,7 @@ import AttachmentManager from "../components/AttachmentManager.vue";
 import AuditLogPanel from "../components/AuditLogPanel.vue";
 import RecordFieldDisplay from "../components/RecordFieldDisplay.vue";
 import RecordAISummaryPanel from "../components/RecordAISummaryPanel.vue";
+import RecordAIQualityPanel from "../components/RecordAIQualityPanel.vue";
 import RecordVersionsPanel from "../components/RecordVersionsPanel.vue";
 import RecordWorkflowPanel from "../components/RecordWorkflowPanel.vue";
 import { fetchRecordDetail } from "../api/records";
@@ -16,7 +17,9 @@ import type {
   ExperimentTemplateDetail,
   RecordFieldValueItem,
 } from "../types/api";
+import { buildRecordQualityContext, buildRecordSectionsContext } from "../utils/recordAI";
 import { getRecordStatusLabel } from "../utils/record-status";
+import { mapRecordValues } from "../utils/templateRuntime";
 
 const route = useRoute();
 const aiStore = useAIStore();
@@ -34,6 +37,7 @@ const valueMap = computed<Record<string, RecordFieldValueItem>>(() => {
   return map;
 });
 
+const recordFieldValues = computed(() => mapRecordValues(record.value?.values || []));
 const isEditable = computed(() => record.value?.status === "draft");
 
 const aiContext = ref<Record<string, unknown>>({});
@@ -47,18 +51,12 @@ watchEffect(() => {
     project_name: record.value?.project_name || record.value?.project_id || "",
     template_name: template.value?.name || "",
     template_key: template.value?.key || "",
-    values: (record.value?.values || []).map((item) => ({
-      section_key: item.section_key_snapshot,
-      field_key: item.field_key_snapshot,
-      field_label: item.field_label_snapshot,
-      field_type: item.field_type_snapshot,
-      value: item.value_json,
-    })),
+    sections: buildRecordSectionsContext(template.value, recordFieldValues.value),
   };
 
   aiStore.setAssistantContext({
     title: "记录 AI 助手",
-    description: "围绕当前实验记录提问，例如提炼风险点、总结异常现象或补全说明。",
+    description: "围绕当前实验记录提问，例如提炼风险点、总结异常现象或给出审核前说明。",
     placeholder: "例如：请结合当前记录，列出 3 个需要进一步复核的风险点。",
     task: "assistant",
     context: aiContext.value,
@@ -90,7 +88,9 @@ async function loadRecord() {
 }
 
 function openAssistant() {
-  aiStore.openAssistant();
+  aiStore.openAssistant({
+    prompt: "请结合当前记录详情，帮我做一次审核前质检，指出风险点、缺失说明和建议的审核意见。",
+  });
 }
 
 function printRecord() {
@@ -161,6 +161,24 @@ onMounted(loadRecord);
           <RecordAISummaryPanel :summary="record.summary || ''" :context="aiContext" :editable="false" />
         </div>
       </section>
+
+      <RecordAIQualityPanel
+        class="print-hidden"
+        :context="buildRecordQualityContext({
+          template,
+          page: 'record-detail',
+          recordId: record.id,
+          recordTitle: record.title,
+          recordStatus: record.status,
+          summary: record.summary || '',
+          projectId: record.project_id,
+          projectName: record.project_name || '',
+          templateName: template.name,
+          templateKey: template.key,
+          fieldValues: recordFieldValues,
+        })"
+        :editable="false"
+      />
 
       <RecordWorkflowPanel class="print-hidden" :record="record" @changed="loadRecord" />
 

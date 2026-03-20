@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
-
 from app.models.project import Project
 from app.models.record import ExperimentRecord
 from app.models.template import ExperimentTemplate
@@ -47,3 +45,26 @@ def can_view_record(user: User, record: ExperimentRecord, project: Project | Non
 def ensure_record_access(user: User, record: ExperimentRecord, project: Project | None = None) -> None:
     if not can_view_record(user, record, project=project):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该实验记录。")
+
+
+def can_manage_record(user: User, record: ExperimentRecord, project: Project | None = None) -> bool:
+    if user.role == "admin":
+        return True
+    if record.created_by == user.id:
+        return True
+    if project is not None and project.owner_id == user.id:
+        return True
+    if record.project is not None and record.project.owner_id == user.id:
+        return True
+    return False
+
+
+def ensure_record_write_access(user: User, record: ExperimentRecord, project: Project | None = None) -> None:
+    if not can_manage_record(user, record, project=project):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权修改该实验记录。")
+
+
+def ensure_record_delete_access(user: User, record: ExperimentRecord, project: Project | None = None) -> None:
+    if record.status != "draft":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="只有 draft 状态的实验记录允许删除。")
+    ensure_record_write_access(user, record, project=project)
