@@ -5,19 +5,11 @@ import { useRoute } from "vue-router";
 import AttachmentManager from "../components/AttachmentManager.vue";
 import DynamicTemplateForm from "../components/DynamicTemplateForm.vue";
 import RecordVersionsPanel from "../components/RecordVersionsPanel.vue";
-
 import { fetchRecordDetail, updateRecord } from "../api/records";
 import { fetchTemplateDetail } from "../api/templates";
-import type {
-  ExperimentRecordDetail,
-  ExperimentTemplateDetail,
-  RecordFieldValuePayload,
-} from "../types/api";
+import type { ExperimentRecordDetail, ExperimentTemplateDetail } from "../types/api";
 import { getRecordStatusLabel } from "../utils/record-status";
-import {
-  initializeTemplateFieldValues,
-  normalizeFieldValue,
-} from "../utils/templateFields";
+import { buildRecordPayloadValues, initializeFieldValues, mapRecordValues } from "../utils/templateRuntime";
 
 const route = useRoute();
 
@@ -25,6 +17,7 @@ const loading = ref(false);
 const saving = ref(false);
 const error = ref("");
 const successText = ref("");
+
 const record = ref<ExperimentRecordDetail | null>(null);
 const template = ref<ExperimentTemplateDetail | null>(null);
 const fieldValues = ref<Record<string, unknown>>({});
@@ -33,15 +26,6 @@ const form = reactive({
   title: "",
   summary: "",
 });
-
-function buildPayloadValues(tpl: ExperimentTemplateDetail): RecordFieldValuePayload[] {
-  return tpl.sections.flatMap((section) =>
-    section.fields.map((field) => ({
-      field_id: field.id,
-      value_json: normalizeFieldValue(field, fieldValues.value[field.id]),
-    })),
-  );
-}
 
 async function loadRecord() {
   const recordId = String(route.params.id || "");
@@ -57,14 +41,10 @@ async function loadRecord() {
 
     record.value = recordData;
     template.value = templateData;
+
     form.title = recordData.title;
     form.summary = recordData.summary || "";
-
-    const nextValues = initializeTemplateFieldValues(templateData);
-    recordData.values.forEach((item) => {
-      nextValues[item.field_id] = item.value_json;
-    });
-    fieldValues.value = nextValues;
+    fieldValues.value = initializeFieldValues(templateData, mapRecordValues(recordData.values));
   } catch (err) {
     console.error(err);
     error.value = "记录加载失败。";
@@ -84,14 +64,14 @@ async function saveRecord() {
     await updateRecord(record.value.id, {
       title: form.title,
       summary: form.summary || undefined,
-      values: buildPayloadValues(template.value),
+      values: buildRecordPayloadValues(template.value, fieldValues.value),
     });
 
     successText.value = "记录已保存，系统已自动生成新的历史快照。";
     await loadRecord();
   } catch (err) {
     console.error(err);
-    error.value = "记录保存失败，请检查必填字段是否完整。";
+    error.value = "记录保存失败，请检查字段格式。";
   } finally {
     saving.value = false;
   }
@@ -102,15 +82,16 @@ onMounted(loadRecord);
 
 <template>
   <div class="page">
-    <section class="card">
-      <div class="section-header">
-        <div>
-          <h2>编辑实验记录</h2>
-          <p class="muted">保存后会自动生成一条新快照，便于回溯内容变更。</p>
-        </div>
+    <section class="page-hero">
+      <div>
+        <p class="eyebrow">编辑记录</p>
+        <h2>编辑实验记录</h2>
+        <p class="muted">保存后会自动生成新快照，便于回溯内容变更。</p>
       </div>
+    </section>
 
-      <p v-if="loading" class="muted">正在加载记录...</p>
+    <section class="card">
+      <div v-if="loading" class="muted">正在加载记录...</div>
 
       <template v-else-if="record && template">
         <div class="form-item">
@@ -122,13 +103,13 @@ onMounted(loadRecord);
           <label class="label">当前状态</label>
           <div class="status-display">
             <span class="badge">{{ getRecordStatusLabel(record.status) }}</span>
-            <p class="muted">状态流转请在详情页的流程面板中操作，编辑页仅负责内容修改。</p>
+            <p class="muted">状态流转请到详情页的流程面板中操作。</p>
           </div>
         </div>
 
         <div class="form-item">
           <label class="label">摘要</label>
-          <textarea v-model="form.summary" class="textarea" rows="4" />
+          <textarea v-model="form.summary" class="textarea" rows="3" />
         </div>
 
         <DynamicTemplateForm v-model="fieldValues" :template="template" />

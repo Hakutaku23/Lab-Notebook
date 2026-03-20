@@ -3,6 +3,10 @@ import vue from "@vitejs/plugin-vue";
 
 export default defineConfig({
   plugins: [vue()],
+  define: {
+    global: "globalThis",
+    "process.env": "{}",
+  },
   server: {
     proxy: {
       "/api": {

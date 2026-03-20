@@ -19,6 +19,7 @@ export const useAuthStore = defineStore("auth", () => {
   const currentUser = ref<AuthUser | null>(getStoredUser());
   const ready = ref(false);
   const loading = ref(false);
+  let restorePromise: Promise<void> | null = null;
 
   const isAuthenticated = computed(() => Boolean(token.value));
   const displayName = computed(() => {
@@ -44,22 +45,35 @@ export const useAuthStore = defineStore("auth", () => {
       return;
     }
 
-    token.value = getStoredToken();
-    currentUser.value = getStoredUser();
-
-    if (!token.value) {
-      ready.value = true;
+    if (restorePromise) {
+      await restorePromise;
       return;
     }
 
+    restorePromise = (async () => {
+      token.value = getStoredToken();
+      currentUser.value = getStoredUser();
+
+      if (!token.value) {
+        ready.value = true;
+        return;
+      }
+
+      try {
+        const me = await fetchCurrentUser();
+        currentUser.value = me;
+        setStoredUser(me);
+      } catch {
+        clearSession();
+      } finally {
+        ready.value = true;
+      }
+    })();
+
     try {
-      const me = await fetchCurrentUser();
-      currentUser.value = me;
-      setStoredUser(me);
-    } catch {
-      clearSession();
+      await restorePromise;
     } finally {
-      ready.value = true;
+      restorePromise = null;
     }
   }
 

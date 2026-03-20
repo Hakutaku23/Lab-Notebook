@@ -6,7 +6,21 @@ from fastapi import HTTPException
 
 from app.models.template import ExperimentTemplate, TemplateField, TemplateSection
 from app.schemas.template import TemplateFieldIn, TemplateSectionIn
-from app.services.field_registry import ALLOWED_FIELD_TYPES, is_supported_field_type
+
+ALLOWED_FIELD_TYPES = {
+    "text",
+    "date",
+    "textarea",
+    "richtext",
+    "table",
+    "file",
+    "number",
+    "select",
+    "checkbox",
+    "json",
+    "chemical_equation",
+    "reaction_process",
+}
 
 
 def validate_template_sections(sections: list[TemplateSectionIn]) -> None:
@@ -25,14 +39,10 @@ def validate_template_sections(sections: list[TemplateSectionIn]) -> None:
                 )
             field_keys.add(field.key)
 
-            if not is_supported_field_type(field.field_type):
-                supported = ", ".join(sorted(ALLOWED_FIELD_TYPES))
+            if field.field_type not in ALLOWED_FIELD_TYPES:
                 raise HTTPException(
                     status_code=422,
-                    detail=(
-                        f"字段 {field.key} 的 field_type 不受支持: {field.field_type}。"
-                        f" 当前支持：{supported}"
-                    ),
+                    detail=f"字段 {field.key} 的 field_type 不受支持: {field.field_type}",
                 )
 
 
@@ -60,20 +70,24 @@ def replace_template_sections(
                 order_index=field_in.order_index,
                 placeholder=field_in.placeholder,
                 help_text=field_in.help_text,
-                default_value=field_in.default_value,
-                options=field_in.options,
-                validation_rules=field_in.validation_rules,
-                ui_props=field_in.ui_props,
+                default_value=deepcopy(field_in.default_value),
+                options=deepcopy(field_in.options),
+                validation_rules=deepcopy(field_in.validation_rules),
+                ui_props=deepcopy(field_in.ui_props),
             )
             section.fields.append(field)
 
         template.sections.append(section)
 
 
+
 def export_template_sections(template: ExperimentTemplate) -> list[TemplateSectionIn]:
-    exported: list[TemplateSectionIn] = []
-    for section in template.sections:
-        exported.append(
+    exported_sections: list[TemplateSectionIn] = []
+
+    sections = sorted(template.sections, key=lambda item: (item.order_index, item.created_at, item.key))
+    for section in sections:
+        fields = sorted(section.fields, key=lambda item: (item.order_index, item.created_at, item.key))
+        exported_sections.append(
             TemplateSectionIn(
                 key=section.key,
                 title=section.title,
@@ -94,8 +108,9 @@ def export_template_sections(template: ExperimentTemplate) -> list[TemplateSecti
                         validation_rules=deepcopy(field.validation_rules),
                         ui_props=deepcopy(field.ui_props),
                     )
-                    for field in section.fields
+                    for field in fields
                 ],
             )
         )
-    return exported
+
+    return exported_sections

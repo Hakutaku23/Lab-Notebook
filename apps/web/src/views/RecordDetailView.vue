@@ -4,9 +4,9 @@ import { RouterLink, useRoute } from "vue-router";
 
 import AttachmentManager from "../components/AttachmentManager.vue";
 import AuditLogPanel from "../components/AuditLogPanel.vue";
-import RecordFieldValuePreview from "../components/RecordFieldValuePreview.vue";
-import RecordWorkflowPanel from "../components/RecordWorkflowPanel.vue";
+import RecordFieldDisplay from "../components/RecordFieldDisplay.vue";
 import RecordVersionsPanel from "../components/RecordVersionsPanel.vue";
+import RecordWorkflowPanel from "../components/RecordWorkflowPanel.vue";
 import { fetchRecordDetail } from "../api/records";
 import { fetchTemplateDetail } from "../api/templates";
 import type {
@@ -25,28 +25,27 @@ const template = ref<ExperimentTemplateDetail | null>(null);
 
 const valueMap = computed<Record<string, RecordFieldValueItem>>(() => {
   const map: Record<string, RecordFieldValueItem> = {};
-  record.value?.values.forEach((item) => {
+  for (const item of record.value?.values ?? []) {
     map[item.field_id] = item;
-  });
+  }
   return map;
 });
 
 async function loadRecord() {
   const recordId = String(route.params.id || "");
-  if (!recordId) {
-    error.value = "缺少记录 ID。";
-    return;
-  }
+  if (!recordId) return;
 
   loading.value = true;
   error.value = "";
 
   try {
-    record.value = await fetchRecordDetail(recordId);
-    template.value = await fetchTemplateDetail(record.value.template_id);
+    const recordData = await fetchRecordDetail(recordId);
+    const templateData = await fetchTemplateDetail(recordData.template_id);
+    record.value = recordData;
+    template.value = templateData;
   } catch (err) {
     console.error(err);
-    error.value = "实验记录详情加载失败。";
+    error.value = "记录详情加载失败。";
   } finally {
     loading.value = false;
   }
@@ -66,36 +65,44 @@ onMounted(loadRecord);
     </section>
 
     <template v-else-if="record && template">
-      <section class="card">
-        <div class="row-between">
-          <div>
-            <h2>{{ record.title }}</h2>
-            <p class="muted">项目：{{ record.project_name || record.project_id }}</p>
-            <p class="muted">模板：{{ record.template_name || record.template_id }}</p>
-            <p class="muted">状态：{{ getRecordStatusLabel(record.status) }}</p>
-          </div>
+      <section class="page-hero">
+        <div>
+          <p class="eyebrow">记录详情</p>
+          <h2>{{ record.title }}</h2>
+          <p class="muted">
+            项目：{{ record.project_name || record.project_id }}
+            · 模板：{{ record.template_name || record.template_id }}
+            · 状态：{{ getRecordStatusLabel(record.status) }}
+          </p>
+        </div>
+        <div class="row-between" style="gap: 12px; flex-wrap: wrap; align-items: center;">
+          <RouterLink class="button secondary" to="/records">返回列表</RouterLink>
+          <RouterLink class="button" :to="`/records/${record.id}/edit`">编辑记录</RouterLink>
+        </div>
+      </section>
 
-          <div class="actions">
-            <RouterLink class="button secondary" to="/records">返回列表</RouterLink>
-            <RouterLink class="button secondary" :to="`/records/${record.id}/edit`">
-              编辑记录
-            </RouterLink>
+      <section class="card">
+        <div class="section-header">
+          <div>
+            <h3>摘要</h3>
+            <p class="muted">{{ record.summary || "暂无摘要" }}</p>
           </div>
         </div>
-
-        <p><strong>摘要：</strong>{{ record.summary || "暂无摘要" }}</p>
       </section>
 
       <RecordWorkflowPanel :record="record" @changed="loadRecord" />
-      <section v-for="section in template.sections" :key="section.id" class="card">
-        <h3>{{ section.title }}</h3>
-        <p v-if="section.description" class="muted">{{ section.description }}</p>
+
+      <section v-for="section in template.sections" :key="section.id" class="card detail-section">
+        <div class="section-header">
+          <div>
+            <h3>{{ section.title }}</h3>
+            <p v-if="section.description" class="muted">{{ section.description }}</p>
+          </div>
+        </div>
 
         <div v-for="field in section.fields" :key="field.id" class="detail-item">
-          <div class="detail-label">{{ field.label }}</div>
-          <div class="detail-value-box">
-            <RecordFieldValuePreview :field="field" :value="valueMap[field.id]?.value_json" />
-          </div>
+          <label class="label">{{ field.label }}</label>
+          <RecordFieldDisplay :field="field" :value="valueMap[field.id]?.value_json" />
         </div>
       </section>
 
@@ -111,10 +118,13 @@ onMounted(loadRecord);
 </template>
 
 <style scoped>
-.detail-value-box {
-  border: 1px solid #d7dbe7;
-  border-radius: 12px;
-  padding: 12px;
-  background: #fafbfe;
+.detail-section {
+  display: grid;
+  gap: 16px;
+}
+
+.detail-item {
+  display: grid;
+  gap: 8px;
 }
 </style>

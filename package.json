@@ -3,6 +3,8 @@
   "private": true,
   "packageManager": "pnpm@10.21.0",
   "scripts": {
+    "preinstall": "node ./scripts/enforce-pnpm.mjs",
+    "dev": "pnpm --dir apps/web dev",
     "dev:web": "pnpm --dir apps/web dev",
     "build:web": "pnpm --dir apps/web build",
     "preview:web": "pnpm --dir apps/web preview"

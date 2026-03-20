@@ -91,7 +91,7 @@ router.beforeEach(async (to) => {
   const authStore = useAuthStore(pinia);
 
   if (!authStore.ready) {
-    await authStore.restoreSession();
+    void authStore.restoreSession();
   }
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {

@@ -6,16 +6,24 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prepare:ketcher": "node ./scripts/copy-ketcher-assets.mjs",
+    "postinstall": "node ./scripts/copy-ketcher-assets.mjs"
   },
   "dependencies": {
     "axios": "^1.13.6",
+    "ketcher-react": "3.5.0",
+    "ketcher-standalone": "3.5.0",
     "pinia": "^3.0.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
     "vue": "^3.5.25",
     "vue-router": "^5.0.3"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
     "@vitejs/plugin-vue": "^6.0.2",
     "@vue/tsconfig": "^0.8.1",
     "typescript": "~5.9.3",
