@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     storage_type: str = "local"
     upload_dir: str = "./uploads"
 
-    llm_provider: str = "none"
+    llm_provider: str = "local"
     llm_base_url: str = ""
     llm_api_key: str = ""
     llm_model: str = ""

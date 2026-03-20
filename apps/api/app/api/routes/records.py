@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
@@ -128,6 +128,7 @@ def list_records(
     project_id: UUID | None = Query(default=None),
     template_id: UUID | None = Query(default=None),
     status_value: str | None = Query(default=None, alias="status"),
+    q: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -146,6 +147,14 @@ def list_records(
         stmt = stmt.where(ExperimentRecord.template_id == template_id)
     if status_value:
         stmt = stmt.where(ExperimentRecord.status == status_value)
+    if q:
+        keyword = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                ExperimentRecord.title.ilike(keyword),
+                ExperimentRecord.summary.ilike(keyword),
+            )
+        )
 
     if current_user.role != "admin":
         stmt = stmt.join(Project, ExperimentRecord.project_id == Project.id).where(

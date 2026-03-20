@@ -1,42 +1,40 @@
 ﻿<script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, watch } from "vue";
 import { RouterLink, RouterView, useRouter } from "vue-router";
 
-import { fetchLLMStatus } from "./api/llm";
+import GlobalAIAssistantDrawer from "./components/GlobalAIAssistantDrawer.vue";
+import { useAIStore } from "./stores/ai";
 import { useAuthStore } from "./stores/auth";
-import type { LLMStatus } from "./types/api";
 import { getUserRoleLabel } from "./utils/user-role";
 
 const router = useRouter();
 const authStore = useAuthStore();
-
-const llmStatus = ref<LLMStatus | null>(null);
-const llmError = ref("");
+const aiStore = useAIStore();
 
 const isAuthenticated = computed(() => authStore.isAuthenticated);
+const sidebarLLMStatus = computed(() => aiStore.activeStatus || aiStore.defaultStatus);
+const sidebarLLMMessage = computed(() => {
+  if (aiStore.error) {
+    return aiStore.error;
+  }
+  return sidebarLLMStatus.value?.message || "尚未读取 AI 服务状态。";
+});
 
 async function hydrateSidebar() {
   if (!authStore.token) {
-    llmStatus.value = null;
-    llmError.value = "";
     return;
   }
-
-  try {
-    llmStatus.value = await fetchLLMStatus();
-    llmError.value = "";
-  } catch (error) {
-    console.error(error);
-    llmStatus.value = null;
-    llmError.value = "大模型服务状态读取失败，请检查后端配置。";
-  }
+  await aiStore.refreshDefaultStatus();
 }
 
 async function signOut() {
   authStore.logout();
-  llmStatus.value = null;
-  llmError.value = "";
+  aiStore.closeAssistant();
   await router.push({ name: "login" });
+}
+
+function openGlobalAssistant() {
+  aiStore.openAssistant();
 }
 
 watch(
@@ -57,13 +55,14 @@ onMounted(() => {
       <div class="sidebar-brand">
         <p class="eyebrow">实验工作台</p>
         <h1>实验记录系统</h1>
-        <p class="muted">围绕项目、模板、记录、附件与审计流程组织实验协作。</p>
+        <p class="muted">围绕项目、模板、记录、附件、审计流程与 AI 辅助能力组织实验协作。</p>
       </div>
 
       <nav class="nav-links">
         <RouterLink to="/projects">项目</RouterLink>
         <RouterLink to="/records">实验记录</RouterLink>
         <RouterLink to="/templates">模板</RouterLink>
+        <RouterLink to="/settings">用户设置</RouterLink>
         <RouterLink v-if="authStore.isAdmin" to="/audit-logs">审计日志</RouterLink>
       </nav>
 
@@ -73,20 +72,25 @@ onMounted(() => {
           <div class="muted">{{ getUserRoleLabel(authStore.currentUser?.role) }}</div>
           <div class="muted">{{ authStore.currentUser?.email || "未填写邮箱" }}</div>
         </div>
-        <button class="button secondary sidebar-signout" type="button" @click="signOut">
-          退出登录
-        </button>
+        <div class="actions sidebar-user-actions">
+          <RouterLink class="button secondary" to="/settings">用户设置</RouterLink>
+          <button class="button secondary sidebar-signout" type="button" @click="signOut">
+            退出登录
+          </button>
+        </div>
       </div>
 
-      <div class="sidebar-card" v-if="llmStatus">
-        <strong>大模型服务</strong>
-        <div>{{ llmStatus.provider }}</div>
-        <div class="muted">{{ llmStatus.message }}</div>
-      </div>
-
-      <div class="sidebar-card" v-else-if="llmError">
-        <strong>大模型服务</strong>
-        <div class="muted">{{ llmError }}</div>
+      <div class="sidebar-card">
+        <strong>AI 服务</strong>
+        <div>{{ sidebarLLMStatus?.provider || "local" }}</div>
+        <div class="muted">
+          {{ aiStore.config.mode === "api_key" ? "当前使用：API key 模式" : "当前使用：本地模型模式" }}
+        </div>
+        <div class="muted">{{ sidebarLLMMessage }}</div>
+        <div class="actions sidebar-ai-actions">
+          <RouterLink class="button secondary" to="/settings">配置 AI</RouterLink>
+          <button class="button secondary" type="button" @click="openGlobalAssistant">打开 AI 助手</button>
+        </div>
       </div>
     </aside>
 
@@ -95,5 +99,11 @@ onMounted(() => {
         <RouterView />
       </div>
     </main>
+
+    <button v-if="isAuthenticated" class="ai-fab" type="button" @click="openGlobalAssistant">
+      AI 助手
+    </button>
+
+    <GlobalAIAssistantDrawer v-if="isAuthenticated" />
   </div>
 </template>

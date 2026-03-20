@@ -9,6 +9,7 @@ import { getFieldDefaultValue, toPrettyJson } from "../utils/templateRuntime";
 interface Props {
   modelValue: Record<string, unknown>;
   template: ExperimentTemplateDetail | null;
+  disabled?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -66,7 +67,7 @@ function placeholderForField(field: TemplateField): string {
 </script>
 
 <template>
-  <div class="dynamic-template-form">
+  <div class="dynamic-template-form" :class="{ 'dynamic-template-form--disabled': disabled }">
     <section v-for="section in sections" :key="section.id" class="card dynamic-template-form__section">
       <div class="section-header">
         <div>
@@ -87,6 +88,7 @@ function placeholderForField(field: TemplateField): string {
           v-if="field.field_type === 'text' || field.field_type === 'richtext'"
           class="input"
           type="text"
+          :disabled="disabled"
           :value="String(fieldValue(field) ?? '')"
           :placeholder="placeholderForField(field)"
           @input="updateFieldValue(field.id, ($event.target as HTMLInputElement).value)"
@@ -96,6 +98,7 @@ function placeholderForField(field: TemplateField): string {
           v-else-if="field.field_type === 'textarea'"
           class="textarea"
           rows="4"
+          :disabled="disabled"
           :value="String(fieldValue(field) ?? '')"
           :placeholder="placeholderForField(field)"
           @input="updateFieldValue(field.id, ($event.target as HTMLTextAreaElement).value)"
@@ -105,6 +108,7 @@ function placeholderForField(field: TemplateField): string {
           v-else-if="field.field_type === 'number'"
           class="input"
           type="number"
+          :disabled="disabled"
           :value="String(fieldValue(field) ?? '')"
           :placeholder="placeholderForField(field)"
           @input="updateFieldValue(field.id, ($event.target as HTMLInputElement).value)"
@@ -114,6 +118,7 @@ function placeholderForField(field: TemplateField): string {
           v-else-if="field.field_type === 'date'"
           class="input"
           type="date"
+          :disabled="disabled"
           :value="String(fieldValue(field) ?? '')"
           @input="updateFieldValue(field.id, ($event.target as HTMLInputElement).value)"
         />
@@ -121,6 +126,7 @@ function placeholderForField(field: TemplateField): string {
         <select
           v-else-if="field.field_type === 'select'"
           class="input"
+          :disabled="disabled"
           :value="String(fieldValue(field) ?? '')"
           @change="updateFieldValue(field.id, ($event.target as HTMLSelectElement).value)"
         >
@@ -133,6 +139,7 @@ function placeholderForField(field: TemplateField): string {
         <label v-else-if="field.field_type === 'checkbox'" class="label" style="display: flex; gap: 8px; align-items: center;">
           <input
             type="checkbox"
+            :disabled="disabled"
             :checked="Boolean(fieldValue(field))"
             @change="updateFieldValue(field.id, ($event.target as HTMLInputElement).checked)"
           />
@@ -157,6 +164,7 @@ function placeholderForField(field: TemplateField): string {
           v-else-if="field.field_type === 'json' || field.field_type === 'table' || field.field_type === 'file'"
           class="textarea"
           rows="8"
+          :disabled="disabled"
           :value="toPrettyJson(fieldValue(field))"
           :placeholder="field.field_type === 'file' ? '请输入文件元数据 JSON 数组' : '请输入 JSON 内容'"
           @input="updateFieldValue(field.id, ($event.target as HTMLTextAreaElement).value)"
@@ -166,6 +174,7 @@ function placeholderForField(field: TemplateField): string {
           v-else
           class="input"
           type="text"
+          :disabled="disabled"
           :value="String(fieldValue(field) ?? '')"
           :placeholder="placeholderForField(field)"
           @input="updateFieldValue(field.id, ($event.target as HTMLInputElement).value)"
@@ -185,5 +194,10 @@ function placeholderForField(field: TemplateField): string {
 .dynamic-template-form__section {
   display: grid;
   gap: 14px;
+}
+
+.dynamic-template-form--disabled {
+  opacity: 0.72;
+  pointer-events: none;
 }
 </style>

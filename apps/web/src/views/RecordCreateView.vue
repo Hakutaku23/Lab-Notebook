@@ -1,11 +1,13 @@
 ﻿<script setup lang="ts">
-import { onMounted, reactive, ref, watch } from "vue";
+import { onBeforeUnmount, onMounted, reactive, ref, watch, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import DynamicTemplateForm from "../components/DynamicTemplateForm.vue";
+import RecordAISummaryPanel from "../components/RecordAISummaryPanel.vue";
 import { fetchProjects } from "../api/projects";
 import { createRecord } from "../api/records";
 import { fetchTemplateByKey, fetchTemplateDetail, fetchTemplates } from "../api/templates";
+import { useAIStore } from "../stores/ai";
 import type {
   ExperimentTemplateDetail,
   ExperimentTemplateSummary,
@@ -16,6 +18,7 @@ import { buildRecordPayloadValues, initializeFieldValues } from "../utils/templa
 
 const route = useRoute();
 const router = useRouter();
+const aiStore = useAIStore();
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -34,6 +37,41 @@ const form = reactive({
   project_id: "",
   template_id: "",
   created_by: "",
+});
+
+watchEffect(() => {
+  aiStore.setAssistantContext({
+    title: "记录 AI 助手",
+    description: "围绕当前新建记录的摘要与字段内容提问。",
+    placeholder: "例如：请根据当前表单内容帮我整理一段更专业的实验说明。",
+    task: "assistant",
+    context: {
+      page: "record-create",
+      title: form.title,
+      project_id: form.project_id,
+      template_name: selectedTemplate.value?.name || "",
+      template_key: selectedTemplate.value?.key || "",
+      current_summary: form.summary,
+      field_values: fieldValues.value,
+    },
+  });
+});
+
+onBeforeUnmount(() => {
+  aiStore.resetAssistantContext();
+});
+
+const aiContext = ref<Record<string, unknown>>({});
+watchEffect(() => {
+  aiContext.value = {
+    page: "record-create",
+    title: form.title,
+    project_id: form.project_id,
+    template_name: selectedTemplate.value?.name || "",
+    template_key: selectedTemplate.value?.key || "",
+    current_summary: form.summary,
+    field_values: fieldValues.value,
+  };
 });
 
 async function loadTemplate(templateId: string) {
@@ -117,6 +155,10 @@ async function loadPageData() {
   }
 }
 
+function openAssistant() {
+  aiStore.openAssistant();
+}
+
 async function submitRecord() {
   if (!selectedTemplate.value) {
     error.value = "请先选择模板。";
@@ -173,7 +215,10 @@ onMounted(loadPageData);
       <div>
         <p class="eyebrow">新建记录</p>
         <h2>新建实验记录</h2>
-        <p class="muted">新建记录默认保存为草稿，后续可提交审核、补充附件并查看历史快照。</p>
+        <p class="muted">新建记录默认保存为草稿，后续可提交审核、补充附件，并配合 AI 辅助撰写摘要。</p>
+      </div>
+      <div class="actions">
+        <button class="button secondary" type="button" @click="openAssistant">AI 助手</button>
       </div>
     </section>
 
@@ -233,8 +278,10 @@ onMounted(loadPageData);
 
         <div class="form-item">
           <label class="label">摘要</label>
-          <textarea v-model="form.summary" class="textarea" rows="3" placeholder="简述实验目标、样品批次或当前结论" />
+          <textarea v-model="form.summary" class="textarea" rows="4" placeholder="可手动填写，也可使用下方 AI 摘要助手" />
         </div>
+
+        <RecordAISummaryPanel v-model:summary="form.summary" :context="aiContext" />
 
         <DynamicTemplateForm v-model="fieldValues" :template="selectedTemplate" />
 

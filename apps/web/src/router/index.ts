@@ -8,6 +8,7 @@ import RecordEditView from "../views/RecordEditView.vue";
 import TemplatesView from "../views/TemplatesView.vue";
 import LoginView from "../views/LoginView.vue";
 import AuditLogsView from "../views/AuditLogsView.vue";
+import SettingsView from "../views/SettingsView.vue";
 
 import { pinia } from "../stores";
 import { useAuthStore } from "../stores/auth";
@@ -82,6 +83,14 @@ export const router = createRouter({
       meta: {
         requiresAuth: true,
         adminOnly: true,
+      },
+    },
+    {
+      path: "/settings",
+      name: "settings",
+      component: SettingsView,
+      meta: {
+        requiresAuth: true,
       },
     },
   ],

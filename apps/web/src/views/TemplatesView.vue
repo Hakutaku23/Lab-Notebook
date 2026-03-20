@@ -1,6 +1,7 @@
-<script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+﻿<script setup lang="ts">
+import { onBeforeUnmount, onMounted, reactive, ref, watchEffect } from "vue";
 
+import TemplateAIGeneratorPanel from "../components/TemplateAIGeneratorPanel.vue";
 import {
   createTemplate,
   createTemplateVersion,
@@ -10,6 +11,7 @@ import {
   fetchTemplates,
   updateTemplate,
 } from "../api/templates";
+import { useAIStore } from "../stores/ai";
 import type {
   ExperimentTemplateDetail,
   ExperimentTemplateSummary,
@@ -20,6 +22,8 @@ import type {
   TemplateVersionCreatePayload,
 } from "../types/api";
 import { buildTemplatePreset } from "../utils/templatePresets";
+
+const aiStore = useAIStore();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -44,6 +48,28 @@ const form = reactive({
 });
 
 const sectionsText = ref("[]");
+
+watchEffect(() => {
+  aiStore.setAssistantContext({
+    title: "模板 AI 助手",
+    description: "围绕当前模板结构、Sections JSON 和字段设计发起提问。",
+    placeholder: "例如：请检查当前模板还缺哪些与实验追溯相关的字段，并给出修改建议。",
+    task: "assistant",
+    context: {
+      page: "templates",
+      template_id: form.id,
+      template_name: form.name,
+      template_key: form.key,
+      category: form.category,
+      description: form.description,
+      sections_json: sectionsText.value,
+    },
+  });
+});
+
+onBeforeUnmount(() => {
+  aiStore.resetAssistantContext();
+});
 
 function prettyJson(value: unknown) {
   return JSON.stringify(value, null, 2);
@@ -74,26 +100,28 @@ function fillForm(detail: ExperimentTemplateDetail) {
   form.created_by = "";
   form.description = detail.description || "";
   form.is_active = detail.is_active;
-  sectionsText.value = prettyJson(detail.sections.map((section) => ({
-    key: section.key,
-    title: section.title,
-    description: section.description,
-    order_index: section.order_index,
-    is_repeatable: section.is_repeatable,
-    fields: section.fields.map((field) => ({
-      key: field.key,
-      label: field.label,
-      field_type: field.field_type,
-      required: field.required,
-      order_index: field.order_index,
-      placeholder: field.placeholder,
-      help_text: field.help_text,
-      default_value: field.default_value,
-      options: field.options,
-      validation_rules: field.validation_rules,
-      ui_props: field.ui_props,
+  sectionsText.value = prettyJson(
+    detail.sections.map((section) => ({
+      key: section.key,
+      title: section.title,
+      description: section.description,
+      order_index: section.order_index,
+      is_repeatable: section.is_repeatable,
+      fields: section.fields.map((field) => ({
+        key: field.key,
+        label: field.label,
+        field_type: field.field_type,
+        required: field.required,
+        order_index: field.order_index,
+        placeholder: field.placeholder,
+        help_text: field.help_text,
+        default_value: field.default_value,
+        options: field.options,
+        validation_rules: field.validation_rules,
+        ui_props: field.ui_props,
+      })),
     })),
-  })));
+  );
 }
 
 function parseSections(): TemplateSectionPayload[] {
@@ -120,11 +148,11 @@ async function loadTemplatesList() {
 async function loadTemplateDetail(templateId: string) {
   error.value = "";
   success.value = "";
+  lineageLoading.value = true;
   try {
     const detail = await fetchTemplateDetail(templateId);
     selectedTemplate.value = detail;
     fillForm(detail);
-    lineageLoading.value = true;
     lineage.value = await fetchTemplateLineage(templateId);
   } catch (err) {
     console.error(err);
@@ -144,14 +172,25 @@ function applyPreset(kind: "generic" | "chemistry") {
   form.description = preset.description;
   form.is_active = true;
   sectionsText.value = prettyJson(preset.sections);
-  success.value = `已载入${kind === "chemistry" ? "化学实验" : "通用实验"}模板预设。`;
+  success.value = kind === "chemistry" ? "已载入化学实验模板预设。" : "已载入通用实验模板预设。";
   error.value = "";
+}
+
+function applyGeneratedSections(nextSectionsText: string) {
+  sectionsText.value = nextSectionsText;
+  success.value = "AI 生成结果已写入 Sections JSON 编辑区。";
+  error.value = "";
+}
+
+function openAssistant() {
+  aiStore.openAssistant();
 }
 
 async function saveCurrentTemplate() {
   error.value = "";
   success.value = "";
   saving.value = true;
+
   try {
     const sections = parseSections();
 
@@ -190,9 +229,20 @@ async function saveCurrentTemplate() {
     if (selectedTemplate.value) {
       lineage.value = await fetchTemplateLineage(selectedTemplate.value.id);
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
-    error.value = err instanceof Error ? err.message : "模板保存失败。";
+    const detail = err?.response?.data?.detail;
+    if (typeof detail === "string") {
+      if (detail.includes("不能直接修改") || detail.includes("不可直接编辑")) {
+        error.value = `${detail} 如需继续调整，请使用“派生新版本”。`;
+      } else {
+        error.value = detail;
+      }
+    } else if (err instanceof Error) {
+      error.value = err.message;
+    } else {
+      error.value = "模板保存失败。";
+    }
   } finally {
     saving.value = false;
   }
@@ -217,12 +267,12 @@ async function deriveNewVersion() {
     const detail = await createTemplateVersion(selectedTemplate.value.id, payload);
     selectedTemplate.value = detail;
     fillForm(detail);
-    success.value = "已派生新版本模板。";
+    success.value = "已派生新的模板版本。";
     await loadTemplatesList();
     lineage.value = await fetchTemplateLineage(detail.id);
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
-    error.value = err instanceof Error ? err.message : "模板派生失败。";
+    error.value = err?.response?.data?.detail || err?.message || "模板派生失败。";
   } finally {
     versioning.value = false;
   }
@@ -239,9 +289,9 @@ async function removeTemplate() {
     success.value = "模板已删除。";
     resetForm();
     await loadTemplatesList();
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
-    error.value = "模板删除失败。";
+    error.value = err?.response?.data?.detail || "模板删除失败。";
   } finally {
     deleting.value = false;
   }
@@ -266,11 +316,12 @@ onMounted(async () => {
     <section class="page-hero">
       <div>
         <h2>模板中心</h2>
-        <p class="muted">当前版本支持模板派生、版本谱系查看，以及基于预设快速生成化学实验模板。</p>
+        <p class="muted">支持模板版本管理、AI 辅助生成 Sections JSON，以及针对化学实验的字段扩展。</p>
       </div>
       <div class="actions">
+        <button class="button secondary" type="button" @click="openAssistant">AI 助手</button>
         <button class="button secondary" type="button" @click="loadTemplatesList">刷新</button>
-        <button class="button" type="button" @click="resetForm">新建</button>
+        <button class="button" type="button" @click="resetForm">新建模板</button>
       </div>
     </section>
 
@@ -291,15 +342,15 @@ onMounted(async () => {
             <div class="muted">{{ item.key }}</div>
             <div class="muted">{{ item.category }} / v{{ item.version }}</div>
           </button>
-          <p v-if="templates.length === 0" class="muted">当前没有模板。</p>
+          <p v-if="templates.length === 0" class="muted">当前还没有模板。</p>
         </div>
       </section>
 
-      <section class="card">
+      <section class="card stack">
         <div class="row-between" style="align-items: flex-start; gap: 16px;">
           <div>
             <h3>{{ form.id ? "编辑模板" : "新建模板" }}</h3>
-            <p class="muted">当模板已被实验记录使用时，后端会拒绝直接修改；此时请使用“派生新版本”。</p>
+            <p class="muted">如果模板已经被实验记录使用，建议通过“派生新版本”继续演化，而不是直接改写历史模板。</p>
             <p v-if="selectedTemplate" class="muted">
               当前选中：{{ selectedTemplate.name }} / {{ selectedTemplate.key }} / v{{ selectedTemplate.version }}
             </p>
@@ -332,29 +383,38 @@ onMounted(async () => {
           </div>
 
           <div class="form-item">
-            <label class="label">创建者 ID（仅新建或派生时可选）</label>
+            <label class="label">创建者 ID（新建或派生时可选）</label>
             <input v-model="form.created_by" class="input" type="text" />
           </div>
 
           <div class="form-item checkbox-holder">
             <label class="label checkbox-row">
               <input v-model="form.is_active" type="checkbox" />
-              <span>启用</span>
+              <span>启用模板</span>
             </label>
           </div>
         </div>
 
         <div class="form-item">
-          <label class="label">描述</label>
+          <label class="label">模板说明</label>
           <textarea v-model="form.description" class="textarea" rows="3" />
         </div>
 
         <div class="preset-help card inner-card">
-          <strong>建议字段类型</strong>
+          <strong>字段建议</strong>
           <p class="muted">
-            当前预设已经包含 chemical_equation 与 reaction_process 两个化学方向字段。你也可以继续手动添加 text / number / table / json / select 等字段类型。
+            当前系统已经支持 chemical_equation 与 reaction_process 等化学字段，也支持 text、number、table、json、select、file 等常规字段类型。
           </p>
         </div>
+
+        <TemplateAIGeneratorPanel
+          :template-name="form.name"
+          :template-key="form.key"
+          :category="form.category"
+          :description-text="form.description"
+          :sections-text="sectionsText"
+          @apply="applyGeneratedSections"
+        />
 
         <div class="form-item">
           <label class="label">Sections JSON</label>
@@ -369,7 +429,7 @@ onMounted(async () => {
             {{ saving ? "保存中..." : "保存模板" }}
           </button>
           <button class="button danger" type="button" :disabled="!selectedTemplate || deleting" @click="removeTemplate">
-            {{ deleting ? "删除中..." : "删除" }}
+            {{ deleting ? "删除中..." : "删除模板" }}
           </button>
         </div>
 
@@ -382,7 +442,7 @@ onMounted(async () => {
       <div class="row-between" style="gap: 16px; align-items: flex-start;">
         <div>
           <h3>模板谱系</h3>
-          <p class="muted">展示当前模板所在版本链，可快速识别父模板、当前模板和后续版本。</p>
+          <p class="muted">展示当前模板所在的版本链，便于查看父模板、当前版本和后续派生版本。</p>
         </div>
       </div>
 
@@ -393,7 +453,7 @@ onMounted(async () => {
             <div class="row-between" style="gap: 16px; align-items: flex-start;">
               <div>
                 <strong>{{ lineageItemLabel(item) }}</strong>
-                <div class="muted">parent: {{ item.parent_template_id || "无" }}</div>
+                <div class="muted">父模板：{{ item.parent_template_id || "无" }}</div>
               </div>
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <span v-if="item.id === lineage.root_template_id" class="muted">根模板</span>
@@ -404,7 +464,7 @@ onMounted(async () => {
           </div>
         </div>
       </template>
-      <p v-else class="muted">当前没有可展示的谱系信息。</p>
+      <p v-else class="muted">当前没有可展示的模板谱系信息。</p>
     </section>
   </div>
 </template>
@@ -431,8 +491,8 @@ onMounted(async () => {
 }
 
 .template-list-item.active {
-  border-color: var(--color-primary, #3b82f6);
-  background: rgba(59, 130, 246, 0.06);
+  border-color: var(--color-primary, #ef476f);
+  background: rgba(239, 71, 111, 0.06);
 }
 
 .form-grid.two-col {

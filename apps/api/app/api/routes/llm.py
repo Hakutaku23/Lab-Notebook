@@ -2,7 +2,12 @@ from fastapi import APIRouter, Depends
 
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.schemas.llm import LLMGenerateIn, LLMGenerateOut, LLMStatusOut
+from app.schemas.llm import (
+    LLMGenerateIn,
+    LLMGenerateOut,
+    LLMStatusCheckIn,
+    LLMStatusOut,
+)
 from app.services.llm import get_llm_service
 
 router = APIRouter()
@@ -14,7 +19,13 @@ def read_llm_status(current_user: User = Depends(get_current_user)):
     return service.status()
 
 
+@router.post("/status/check", response_model=LLMStatusOut)
+def check_llm_status(payload: LLMStatusCheckIn, current_user: User = Depends(get_current_user)):
+    service = get_llm_service(payload.config.model_dump(exclude_none=True))
+    return service.status()
+
+
 @router.post("/generate", response_model=LLMGenerateOut)
 def generate_with_llm(payload: LLMGenerateIn, current_user: User = Depends(get_current_user)):
-    service = get_llm_service()
+    service = get_llm_service(payload.config.model_dump(exclude_none=True) if payload.config else None)
     return service.generate(task=payload.task, prompt=payload.prompt, context=payload.context)

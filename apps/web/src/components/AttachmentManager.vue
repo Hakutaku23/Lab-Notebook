@@ -10,6 +10,7 @@ import type { AttachmentItem } from "../types/api";
 
 const props = defineProps<{
   recordId: string;
+  disabled?: boolean;
 }>();
 
 const attachments = ref<AttachmentItem[]>([]);
@@ -94,17 +95,17 @@ onMounted(loadAttachments);
       </div>
     </div>
 
-    <div class="form-item">
+    <div v-if="!props.disabled" class="form-item">
       <label class="label">附件说明</label>
       <input v-model="description" class="input" type="text" placeholder="可选，便于团队理解附件用途" />
     </div>
 
-    <div class="form-item">
+    <div v-if="!props.disabled" class="form-item">
       <label class="label">上传者 ID（可选）</label>
       <input v-model="uploadedBy" class="input" type="text" placeholder="默认使用当前登录用户" />
     </div>
 
-    <div class="form-item">
+    <div v-if="!props.disabled" class="form-item">
       <label class="label">选择文件</label>
       <input class="input" type="file" :disabled="uploading" @change="onFileChange" />
     </div>
@@ -133,7 +134,7 @@ onMounted(loadAttachments);
             >
               下载
             </a>
-            <button class="button danger" @click="removeAttachment(item.id)">删除</button>
+            <button v-if="!props.disabled" class="button danger" @click="removeAttachment(item.id)">删除</button>
           </div>
         </div>
       </article>

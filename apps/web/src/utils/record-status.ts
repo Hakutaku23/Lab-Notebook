@@ -1,4 +1,4 @@
-export const RECORD_STATUS_LABELS: Record<string, string> = {
+﻿export const RECORD_STATUS_LABELS: Record<string, string> = {
   draft: "草稿",
   submitted: "待审核",
   approved: "已通过",

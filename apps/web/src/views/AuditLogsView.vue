@@ -4,12 +4,13 @@ import AuditLogPanel from "../components/AuditLogPanel.vue";
 
 <template>
   <section class="page">
-    <div class="page-header">
+    <section class="page-hero">
       <div>
-        <h2>审计日志</h2>
-        <p class="muted">管理员可按资源、操作人和动作查看全局审计轨迹。</p>
+        <p class="eyebrow">审计日志</p>
+        <h2>全局审计检索</h2>
+        <p class="muted">管理员可按关键词、资源、操作人和动作查看全局审计轨迹。</p>
       </div>
-    </div>
+    </section>
 
     <AuditLogPanel title="全局审计日志" :show-filters="true" />
   </section>

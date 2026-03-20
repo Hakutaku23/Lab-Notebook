@@ -1,17 +1,20 @@
 ﻿<script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watchEffect } from "vue";
 import { useRoute } from "vue-router";
 
 import AttachmentManager from "../components/AttachmentManager.vue";
 import DynamicTemplateForm from "../components/DynamicTemplateForm.vue";
+import RecordAISummaryPanel from "../components/RecordAISummaryPanel.vue";
 import RecordVersionsPanel from "../components/RecordVersionsPanel.vue";
 import { fetchRecordDetail, updateRecord } from "../api/records";
 import { fetchTemplateDetail } from "../api/templates";
+import { useAIStore } from "../stores/ai";
 import type { ExperimentRecordDetail, ExperimentTemplateDetail } from "../types/api";
 import { getRecordStatusLabel } from "../utils/record-status";
 import { buildRecordPayloadValues, initializeFieldValues, mapRecordValues } from "../utils/templateRuntime";
 
 const route = useRoute();
+const aiStore = useAIStore();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -25,6 +28,45 @@ const fieldValues = ref<Record<string, unknown>>({});
 const form = reactive({
   title: "",
   summary: "",
+});
+
+const isLocked = computed(() => record.value?.status !== "draft");
+
+watchEffect(() => {
+  aiStore.setAssistantContext({
+    title: "记录 AI 助手",
+    description: "围绕当前实验记录的摘要、字段和版本内容发起提问。",
+    placeholder: "例如：请帮我检查当前记录还缺哪些关键实验信息。",
+    task: "assistant",
+    context: {
+      page: "record-edit",
+      record_id: record.value?.id || "",
+      title: form.title,
+      status: record.value?.status || "",
+      template_name: template.value?.name || "",
+      template_key: template.value?.key || "",
+      current_summary: form.summary,
+      field_values: fieldValues.value,
+    },
+  });
+});
+
+onBeforeUnmount(() => {
+  aiStore.resetAssistantContext();
+});
+
+const aiContext = ref<Record<string, unknown>>({});
+watchEffect(() => {
+  aiContext.value = {
+    page: "record-edit",
+    record_id: record.value?.id || "",
+    title: form.title,
+    status: record.value?.status || "",
+    template_name: template.value?.name || "",
+    template_key: template.value?.key || "",
+    current_summary: form.summary,
+    field_values: fieldValues.value,
+  };
 });
 
 async function loadRecord() {
@@ -53,8 +95,12 @@ async function loadRecord() {
   }
 }
 
+function openAssistant() {
+  aiStore.openAssistant();
+}
+
 async function saveRecord() {
-  if (!record.value || !template.value) return;
+  if (!record.value || !template.value || isLocked.value) return;
 
   saving.value = true;
   error.value = "";
@@ -107,7 +153,10 @@ onMounted(loadRecord);
       <div>
         <p class="eyebrow">编辑记录</p>
         <h2>编辑实验记录</h2>
-        <p class="muted">保存后会自动生成新快照，便于回溯内容变更。</p>
+        <p class="muted">保存后会自动生成新快照，便于回溯内容变更，并可使用 AI 辅助完善摘要。</p>
+      </div>
+      <div class="actions print-hidden">
+        <button class="button secondary" type="button" @click="openAssistant">AI 助手</button>
       </div>
     </section>
 
@@ -115,9 +164,14 @@ onMounted(loadRecord);
       <div v-if="loading" class="muted">正在加载记录...</div>
 
       <template v-else-if="record && template">
+        <div v-if="isLocked" class="status-display">
+          <strong>当前正文已锁定</strong>
+          <p class="muted">只有草稿状态允许直接编辑。若要继续修改，请先在详情页执行对应流程动作。</p>
+        </div>
+
         <div class="form-item">
           <label class="label">标题</label>
-          <input v-model="form.title" class="input" type="text" />
+          <input v-model="form.title" class="input" type="text" :disabled="isLocked" />
         </div>
 
         <div class="form-item">
@@ -130,12 +184,15 @@ onMounted(loadRecord);
 
         <div class="form-item">
           <label class="label">摘要</label>
-          <textarea v-model="form.summary" class="textarea" rows="3" />
+          <textarea v-model="form.summary" class="textarea" rows="4" :disabled="isLocked" />
         </div>
 
-        <DynamicTemplateForm v-model="fieldValues" :template="template" />
+                <RecordAISummaryPanel v-if="!isLocked" v-model:summary="form.summary" :context="aiContext" />
+        <p v-else class="muted">当前记录已锁定，AI 摘要建议请在详情页查看或先重新打开为草稿。</p>
 
-        <button class="button" :disabled="saving" @click="saveRecord">
+        <DynamicTemplateForm v-model="fieldValues" :template="template" :disabled="isLocked" />
+
+        <button class="button" :disabled="saving || isLocked" @click="saveRecord">
           {{ saving ? "保存中..." : "保存修改" }}
         </button>
 
@@ -144,7 +201,8 @@ onMounted(loadRecord);
       </template>
     </section>
 
-    <AttachmentManager v-if="record" :record-id="record.id" @changed="loadRecord" />
+    <AttachmentManager v-if="record" :record-id="record.id" :disabled="isLocked" @changed="loadRecord" />
     <RecordVersionsPanel v-if="record" :record-id="record.id" @restored="handleVersionRestored" />
   </div>
 </template>
+

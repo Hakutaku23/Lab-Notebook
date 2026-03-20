@@ -16,6 +16,7 @@ export async function fetchRecords(params?: {
   project_id?: string;
   template_id?: string;
   status?: string;
+  q?: string;
 }): Promise<ExperimentRecordSummary[]> {
   const { data } = await http.get("/records", { params });
   return data;

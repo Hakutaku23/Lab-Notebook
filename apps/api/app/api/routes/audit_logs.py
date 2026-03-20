@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -25,6 +25,7 @@ def list_audit_logs(
     resource_id: UUID | None = Query(default=None),
     actor_id: UUID | None = Query(default=None),
     action: str | None = Query(default=None),
+    q: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -42,6 +43,16 @@ def list_audit_logs(
 
     if action:
         stmt = stmt.where(AuditLog.action == action)
+    if q:
+        keyword = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                AuditLog.summary.ilike(keyword),
+                AuditLog.action.ilike(keyword),
+                AuditLog.resource_type.ilike(keyword),
+                AuditLog.actor_username.ilike(keyword),
+            )
+        )
 
     if current_user.role != "admin":
         if resource_type == "record" and resource_id is not None:

@@ -232,12 +232,43 @@ export interface RecordVersionCompareResult {
   items: RecordDiffItem[];
 }
 
+export type LLMMode = "local" | "api_key";
+
+export interface LLMRuntimeConfig {
+  mode: LLMMode;
+  base_url?: string | null;
+  model?: string | null;
+  api_key?: string | null;
+}
+
 export interface LLMStatus {
   provider: string;
+  mode?: LLMMode | "mock" | "none";
   model?: string | null;
   enabled: boolean;
+  configured?: boolean;
   supports_generation: boolean;
   message: string;
+  base_url?: string | null;
+}
+
+export interface LLMStatusCheckPayload {
+  config: LLMRuntimeConfig;
+}
+
+export interface LLMGeneratePayload {
+  task: string;
+  prompt: string;
+  context?: Record<string, unknown> | null;
+  config?: LLMRuntimeConfig | null;
+}
+
+export interface LLMGenerateResult {
+  provider: string;
+  mode?: LLMMode | "mock" | "none";
+  model?: string | null;
+  content: string;
+  raw?: Record<string, unknown> | null;
 }
 
 export interface AuthUser {
@@ -273,6 +304,7 @@ export interface AuditLogQuery {
   resource_id?: string;
   actor_id?: string;
   action?: string;
+  q?: string;
   limit?: number;
 }
 
