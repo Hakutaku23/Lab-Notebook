@@ -28,6 +28,7 @@ const timelineItems = ref<AuditLogItem[]>([]);
 
 const actions = computed(() => props.record.allowed_actions || []);
 const isEditable = computed(() => props.record.status === "draft");
+const trimmedComment = computed(() => comment.value.trim());
 
 function actionLabel(action: RecordWorkflowAction) {
   switch (action) {
@@ -57,6 +58,18 @@ function actionDescription(action: RecordWorkflowAction) {
     default:
       return "";
   }
+}
+
+
+function actionNeedsComment(action: RecordWorkflowAction) {
+  return ["withdraw", "approve", "reopen"].includes(action);
+}
+
+function commentHint(action: RecordWorkflowAction) {
+  if (!actionNeedsComment(action)) {
+    return "可选填写流转说明。";
+  }
+  return "该动作必须填写审核意见或流转说明。";
 }
 
 function statusHint(status: string) {
@@ -125,6 +138,11 @@ async function loadTimeline() {
 }
 
 async function runAction(action: RecordWorkflowAction) {
+  if (actionNeedsComment(action) && !trimmedComment.value) {
+    error.value = "当前流程动作必须填写审核意见或流转说明。";
+    return;
+  }
+
   loadingAction.value = action;
   error.value = "";
   successText.value = "";
@@ -132,7 +150,7 @@ async function runAction(action: RecordWorkflowAction) {
   try {
     const updated = await transitionRecordWorkflow(props.record.id, {
       action,
-      comment: comment.value || undefined,
+      comment: trimmedComment.value || undefined,
     });
 
     comment.value = "";
@@ -182,6 +200,7 @@ watch(
             rows="3"
             placeholder="例如：数据已核对完成，同意进入下一状态。"
           />
+          <p class="muted">提交审核可不填；撤回、审核通过、重新打开需要填写意见，便于审计追踪。</p>
         </div>
 
         <div v-if="actions.length > 0" class="workflow-actions">
@@ -189,11 +208,12 @@ watch(
             v-for="action in actions"
             :key="action"
             class="button secondary workflow-action-button"
-            :disabled="loadingAction !== ''"
+            :disabled="loadingAction !== '' || (actionNeedsComment(action) && !trimmedComment)"
             @click="runAction(action)"
           >
             <span>{{ loadingAction === action ? "处理中..." : actionLabel(action) }}</span>
             <small>{{ actionDescription(action) }}</small>
+            <small>{{ commentHint(action) }}</small>
           </button>
         </div>
 

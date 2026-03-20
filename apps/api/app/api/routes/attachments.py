@@ -12,12 +12,12 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.attachment import Attachment
 from app.models.project import Project
-from app.models.project import Project
 from app.models.record import ExperimentRecord
 from app.models.user import User
 from app.schemas.attachment import AttachmentOut
 from app.services.audit import write_audit_log
-from app.services.permissions import ensure_record_access
+from app.services.permissions import ensure_record_access, ensure_record_write_access
+from app.services.record_workflow import ensure_record_editable
 from app.services.serializers import serialize_attachment
 from app.services.storage import save_record_file
 from app.services.user_resolver import resolve_user_id
@@ -56,6 +56,8 @@ def upload_attachment(
         raise HTTPException(status_code=404, detail="实验记录不存在。")
     project = db.get(Project, record.project_id)
     ensure_record_access(current_user, record, project=project)
+    ensure_record_write_access(current_user, record, project=project)
+    ensure_record_editable(record)
     actual_user_id = resolve_user_id(db, uploaded_by or current_user.id)
     stored = save_record_file(str(record_id), file)
     attachment = Attachment(
@@ -78,7 +80,7 @@ def upload_attachment(
         resource_type="record",
         resource_id=record_id,
         summary=f"上传附件：{attachment.original_name}",
-        detail={"attachment_id": str(attachment.id), "size_bytes": attachment.size_bytes},
+        detail={"attachment_id": str(attachment.id), "size_bytes": attachment.size_bytes, "actor_role": current_user.role},
     )
     db.commit()
     db.refresh(attachment)
@@ -119,6 +121,8 @@ def delete_attachment(
         raise HTTPException(status_code=404, detail="实验记录不存在。")
     project = db.get(Project, record.project_id)
     ensure_record_access(current_user, record, project=project)
+    ensure_record_write_access(current_user, record, project=project)
+    ensure_record_editable(record)
     record_id = item.record_id
     file_path = item.storage_path
     file_name = item.original_name
@@ -132,6 +136,7 @@ def delete_attachment(
         resource_type="record",
         resource_id=record_id,
         summary=f"删除附件：{file_name}",
+        detail={"actor_role": current_user.role},
     )
     db.commit()
     try:
