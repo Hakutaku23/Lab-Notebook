@@ -1,6 +1,7 @@
 ﻿<script setup lang="ts">
 import { computed } from "vue";
 
+import ChemicalStructurePreview from "./ChemicalStructurePreview.vue";
 import type { TemplateField } from "../types/api";
 import {
   buildSelectOptions,
@@ -8,6 +9,7 @@ import {
   coerceReactionProcessSteps,
   formatFieldValue,
 } from "../utils/templateFields";
+import { getChemicalEquationPreviewSource } from "../utils/templateRuntime";
 
 const props = defineProps<{
   field: TemplateField;
@@ -21,6 +23,7 @@ const selectLabel = computed(() => {
 });
 
 const equationValue = computed(() => coerceChemicalEquationValue(props.value));
+const equationPreviewSource = computed(() => getChemicalEquationPreviewSource(props.value));
 const reactionSteps = computed(() => coerceReactionProcessSteps(props.value));
 
 const isStructuredValue = computed(
@@ -34,36 +37,41 @@ function formattedValue() {
 
 <template>
   <div v-if="field.field_type === 'chemical_equation'" class="preview-stack">
-    <div v-if="equationValue.equation" class="preview-item">
-      <strong>方程式：</strong>
-      <pre class="preview-pre">{{ equationValue.equation }}</pre>
+    <ChemicalStructurePreview v-if="equationPreviewSource" :structure="equationPreviewSource" />
+    <div v-if="equationValue.plain_text" class="preview-item">
+      <strong>内容：</strong>
+      <pre class="preview-pre">{{ equationValue.plain_text }}</pre>
     </div>
-    <div v-if="equationValue.conditions" class="preview-item">
-      <strong>条件：</strong>
-      <span>{{ equationValue.conditions }}</span>
+    <div v-if="equationValue.smiles" class="preview-item">
+      <strong>SMILES：</strong>
+      <span>{{ equationValue.smiles }}</span>
     </div>
-    <div v-if="equationValue.notes" class="preview-item">
-      <strong>备注：</strong>
-      <span>{{ equationValue.notes }}</span>
-    </div>
-    <span v-if="!equationValue.equation && !equationValue.conditions && !equationValue.notes">无</span>
+    <span v-if="!equationPreviewSource && !equationValue.plain_text && !equationValue.smiles">无</span>
   </div>
 
   <div v-else-if="field.field_type === 'reaction_process'" class="preview-stack">
     <span v-if="reactionSteps.length === 0">无</span>
     <div v-for="(step, index) in reactionSteps" :key="`${field.id}-${index}`" class="preview-card">
       <div class="preview-title">步骤 {{ index + 1 }}{{ step.title ? `：${step.title}` : "" }}</div>
-      <div v-if="step.description" class="preview-item">
-        <strong>描述：</strong>
-        <span>{{ step.description }}</span>
+      <div v-if="step.operation" class="preview-item">
+        <strong>操作：</strong>
+        <span>{{ step.operation }}</span>
       </div>
-      <div v-if="step.conditions" class="preview-item">
+      <div v-if="step.reagent" class="preview-item">
+        <strong>试剂：</strong>
+        <span>{{ step.reagent }}</span>
+      </div>
+      <div v-if="step.condition" class="preview-item">
         <strong>条件：</strong>
-        <span>{{ step.conditions }}</span>
+        <span>{{ step.condition }}</span>
       </div>
       <div v-if="step.observation" class="preview-item">
         <strong>现象：</strong>
         <span>{{ step.observation }}</span>
+      </div>
+      <div v-if="step.note" class="preview-item">
+        <strong>备注：</strong>
+        <span>{{ step.note }}</span>
       </div>
     </div>
   </div>

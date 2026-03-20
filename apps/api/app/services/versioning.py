@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.models.record import ExperimentRecord, RecordFieldValue
 from app.models.template import ExperimentTemplate, TemplateSection
 from app.models.version import RecordVersion
+from app.services.record_field_values import normalize_record_field_value
 
 
 def get_record_for_snapshot(db: Session, record_id: UUID) -> ExperimentRecord:
@@ -65,7 +66,10 @@ def build_snapshot_payload(record: ExperimentRecord) -> dict:
                 "field_key_snapshot": value.field_key_snapshot,
                 "field_label_snapshot": value.field_label_snapshot,
                 "field_type_snapshot": value.field_type_snapshot,
-                "value_json": value.value_json,
+                "value_json": normalize_record_field_value(
+                    value.field_type_snapshot,
+                    value.value_json,
+                ),
                 "note": value.note,
                 "created_at": value.created_at,
                 "updated_at": value.updated_at,
@@ -146,7 +150,10 @@ def restore_record_from_snapshot(
                 field_key_snapshot=item.get("field_key_snapshot") or field.key,
                 field_label_snapshot=item.get("field_label_snapshot") or field.label,
                 field_type_snapshot=item.get("field_type_snapshot") or field.field_type,
-                value_json=item.get("value_json"),
+                value_json=normalize_record_field_value(
+                    field.field_type,
+                    item.get("value_json"),
+                ),
                 note=item.get("note"),
             )
         )

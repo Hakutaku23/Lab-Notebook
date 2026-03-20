@@ -77,6 +77,27 @@ async function saveRecord() {
   }
 }
 
+function applyRecordToForm(recordData: ExperimentRecordDetail) {
+  if (!template.value) {
+    return;
+  }
+
+  record.value = recordData;
+  form.title = recordData.title;
+  form.summary = recordData.summary || "";
+  fieldValues.value = initializeFieldValues(template.value, mapRecordValues(recordData.values));
+}
+
+async function handleVersionRestored(restored: ExperimentRecordDetail) {
+  successText.value = "已恢复历史版本，编辑表单已同步为当前记录内容。";
+  if (!template.value || template.value.id !== restored.template_id) {
+    await loadRecord();
+    return;
+  }
+
+  applyRecordToForm(restored);
+}
+
 onMounted(loadRecord);
 </script>
 
@@ -124,6 +145,6 @@ onMounted(loadRecord);
     </section>
 
     <AttachmentManager v-if="record" :record-id="record.id" @changed="loadRecord" />
-    <RecordVersionsPanel v-if="record" :record-id="record.id" />
+    <RecordVersionsPanel v-if="record" :record-id="record.id" @restored="handleVersionRestored" />
   </div>
 </template>

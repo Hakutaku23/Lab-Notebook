@@ -2,7 +2,12 @@
 import type { Root } from "react-dom/client";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
-import type { ChemicalEquationValue } from "../utils/templateRuntime";
+import {
+  getChemicalEquationDisplayText,
+  getChemicalEquationSource,
+  normalizeChemicalEquationValue,
+  type ChemicalEquationValue,
+} from "../utils/templateRuntime";
 
 interface Props {
   modelValue: ChemicalEquationValue | string | null | undefined;
@@ -58,38 +63,15 @@ let syncingFromEditor = false;
 let lastLoadedSource = "";
 
 function normalizeValue(value: Props["modelValue"]): ChemicalEquationValue | null {
-  if (!value) return null;
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed ? { plain_text: trimmed, kind: "molecule" } : null;
-  }
-  return value;
+  return normalizeChemicalEquationValue(value);
 }
 
 function toSource(value: Props["modelValue"]): string {
-  const normalized = normalizeValue(value);
-  if (!normalized) return "";
-  return (
-    normalized.rxnfile ||
-    normalized.molfile ||
-    normalized.ket ||
-    normalized.smiles ||
-    normalized.plain_text ||
-    ""
-  );
+  return getChemicalEquationSource(value);
 }
 
 function toText(value: Props["modelValue"]): string {
-  const normalized = normalizeValue(value);
-  if (!normalized) return "";
-  return (
-    normalized.plain_text ||
-    normalized.smiles ||
-    normalized.rxnfile ||
-    normalized.molfile ||
-    normalized.ket ||
-    ""
-  );
+  return getChemicalEquationDisplayText(value);
 }
 
 const previewSvg = computed(() => normalizeValue(props.modelValue)?.svg || "");
@@ -106,15 +88,18 @@ function emitTextValue(value: string) {
     return;
   }
 
-  emit("update:modelValue", {
-    kind: "molecule",
-    plain_text: trimmed,
-    smiles: "",
-    molfile: "",
-    rxnfile: "",
-    ket: "",
-    svg: previewSvg.value || "",
-  });
+  emit(
+    "update:modelValue",
+    normalizeChemicalEquationValue({
+      kind: "molecule",
+      plain_text: trimmed,
+      smiles: "",
+      molfile: "",
+      rxnfile: "",
+      ket: "",
+      svg: previewSvg.value || "",
+    }),
+  );
 }
 
 function cleanupEditor() {
@@ -177,15 +162,18 @@ async function emitStructuredValue() {
 
     textValue.value = plainText;
     lastLoadedSource = sourceForImage || plainText;
-    emit("update:modelValue", {
-      kind,
-      ket,
-      rxnfile,
-      molfile,
-      smiles,
-      svg,
-      plain_text: plainText,
-    });
+    emit(
+      "update:modelValue",
+      normalizeChemicalEquationValue({
+        kind,
+        ket,
+        rxnfile,
+        molfile,
+        smiles,
+        svg,
+        plain_text: plainText,
+      }),
+    );
     statusText.value = containsReaction ? "已同步反应结构。" : "已同步分子结构。";
     errorText.value = "";
   } catch (error) {

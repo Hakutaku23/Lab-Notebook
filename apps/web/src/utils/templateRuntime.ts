@@ -19,9 +19,189 @@ export interface ReactionProcessStep {
   note?: string;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function cleanString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function isStructuredChemicalSource(value: string): boolean {
+  const trimmed = value.trim();
+  return (
+    trimmed.startsWith("$RXN") ||
+    trimmed.includes("M  END") ||
+    (trimmed.startsWith("{") && trimmed.endsWith("}"))
+  );
+}
+
+export function createEmptyChemicalEquationValue(
+  kind: ChemicalEquationValue["kind"] = "molecule",
+): ChemicalEquationValue {
+  return {
+    kind,
+    ket: "",
+    rxnfile: "",
+    molfile: "",
+    smiles: "",
+    svg: "",
+    plain_text: "",
+  };
+}
+
+export function createEmptyReactionProcessStep(): ReactionProcessStep {
+  return {
+    title: "",
+    operation: "",
+    reagent: "",
+    condition: "",
+    observation: "",
+    note: "",
+  };
+}
+
+export function normalizeChemicalEquationValue(value: unknown): ChemicalEquationValue | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    const plainText = value.trim();
+    if (!plainText) return null;
+
+    const next = createEmptyChemicalEquationValue(
+      plainText.startsWith("$RXN") ? "reaction" : "molecule",
+    );
+    next.plain_text = plainText;
+    return next;
+  }
+
+  if (!isPlainObject(value)) {
+    return null;
+  }
+
+  const ket = cleanString(value.ket);
+  const rxnfile = cleanString(value.rxnfile);
+  const molfile = cleanString(value.molfile);
+  const smiles = cleanString(value.smiles);
+  const svg = cleanString(value.svg);
+  const plainTextInput = cleanString(value.plain_text);
+
+  const kind =
+    value.kind === "reaction" || rxnfile
+      ? "reaction"
+      : value.kind === "molecule"
+        ? "molecule"
+        : "molecule";
+
+  const plainText = plainTextInput || smiles || rxnfile || molfile || ket || "";
+  if (!plainText && !svg) {
+    return null;
+  }
+
+  return {
+    kind,
+    ket,
+    rxnfile,
+    molfile,
+    smiles,
+    svg,
+    plain_text: plainText,
+  };
+}
+
+export function normalizeReactionProcessValue(value: unknown): ReactionProcessStep[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (!isPlainObject(item)) {
+          return createEmptyReactionProcessStep();
+        }
+
+        return {
+          title: cleanString(item.title),
+          operation: cleanString(item.operation),
+          reagent: cleanString(item.reagent),
+          condition: cleanString(item.condition),
+          observation: cleanString(item.observation),
+          note: cleanString(item.note),
+        } satisfies ReactionProcessStep;
+      })
+      .filter((item) => Object.values(item).some(Boolean));
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      return normalizeReactionProcessValue(parsed);
+    } catch {
+      return trimmed
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => ({
+          title: line,
+          operation: "",
+          reagent: "",
+          condition: "",
+          observation: "",
+          note: "",
+        }));
+    }
+  }
+
+  return [];
+}
+
+export function getChemicalEquationSource(value: unknown): string {
+  const normalized = normalizeChemicalEquationValue(value);
+  if (!normalized) return "";
+
+  return (
+    normalized.rxnfile ||
+    normalized.molfile ||
+    normalized.ket ||
+    normalized.smiles ||
+    normalized.plain_text ||
+    ""
+  );
+}
+
+export function getChemicalEquationPreviewSource(value: unknown): string {
+  const normalized = normalizeChemicalEquationValue(value);
+  if (!normalized) return "";
+
+  return (
+    normalized.rxnfile ||
+    normalized.molfile ||
+    normalized.ket ||
+    (normalized.plain_text && isStructuredChemicalSource(normalized.plain_text)
+      ? normalized.plain_text
+      : "")
+  );
+}
+
+export function getChemicalEquationDisplayText(value: unknown): string {
+  const normalized = normalizeChemicalEquationValue(value);
+  if (!normalized) return "";
+
+  return (
+    normalized.plain_text ||
+    normalized.smiles ||
+    normalized.rxnfile ||
+    normalized.molfile ||
+    normalized.ket ||
+    ""
+  );
+}
+
 export function getFieldDefaultValue(field: TemplateField): unknown {
   if (field.default_value !== undefined && field.default_value !== null) {
-    return field.default_value;
+    return normalizeFieldValueForForm(field, field.default_value);
   }
 
   switch (field.field_type) {
@@ -37,15 +217,7 @@ export function getFieldDefaultValue(field: TemplateField): unknown {
     case "reaction_process":
       return [];
     case "chemical_equation":
-      return {
-        kind: "molecule",
-        ket: "",
-        rxnfile: "",
-        molfile: "",
-        smiles: "",
-        svg: "",
-        plain_text: "",
-      } satisfies ChemicalEquationValue;
+      return createEmptyChemicalEquationValue();
     default:
       return "";
   }
@@ -60,7 +232,10 @@ export function initializeFieldValues(
   template.sections.forEach((section) => {
     section.fields.forEach((field) => {
       const existing = existingValues?.[field.id];
-      nextValues[field.id] = existing !== undefined ? existing : getFieldDefaultValue(field);
+      nextValues[field.id] =
+        existing !== undefined
+          ? normalizeFieldValueForForm(field, existing)
+          : getFieldDefaultValue(field);
     });
   });
 
@@ -85,40 +260,17 @@ function parseJsonLike(value: string): unknown {
   }
 }
 
-function normalizeReactionProcess(value: unknown): ReactionProcessStep[] | string {
-  if (Array.isArray(value)) {
-    return value as ReactionProcessStep[];
+export function normalizeFieldValueForForm(field: TemplateField, value: unknown): unknown {
+  switch (field.field_type) {
+    case "checkbox":
+      return Boolean(value);
+    case "reaction_process":
+      return normalizeReactionProcessValue(value);
+    case "chemical_equation":
+      return normalizeChemicalEquationValue(value) ?? createEmptyChemicalEquationValue();
+    default:
+      return value;
   }
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) return [];
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed)) return parsed as ReactionProcessStep[];
-      return trimmed;
-    } catch {
-      return trimmed
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line) => ({ title: line }));
-    }
-  }
-
-  return [];
-}
-
-function normalizeChemicalEquation(value: unknown): ChemicalEquationValue | string | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed ? { plain_text: trimmed } : null;
-  }
-  if (typeof value === "object") {
-    return value as ChemicalEquationValue;
-  }
-  return null;
 }
 
 export function normalizeFieldValueForSubmit(field: TemplateField, value: unknown): unknown {
@@ -136,10 +288,12 @@ export function normalizeFieldValueForSubmit(field: TemplateField, value: unknow
     case "table":
     case "file":
       return typeof value === "string" ? parseJsonLike(value) : value;
-    case "reaction_process":
-      return normalizeReactionProcess(value);
+    case "reaction_process": {
+      const normalized = normalizeReactionProcessValue(value);
+      return normalized.length > 0 ? normalized : null;
+    }
     case "chemical_equation":
-      return normalizeChemicalEquation(value);
+      return normalizeChemicalEquationValue(value);
     default:
       return value;
   }

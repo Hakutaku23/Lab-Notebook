@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.models.version import RecordVersion
+from app.services.record_field_values import normalize_record_field_value
 
 
 RECORD_FIELD_LABELS = {
@@ -19,6 +20,13 @@ def _normalize(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: _normalize(val) for key, val in sorted(value.items())}
     return value
+
+
+def _normalize_record_value(item: dict[str, Any] | None) -> Any:
+    if item is None:
+        return None
+    field_type = str(item.get("field_type_snapshot") or "")
+    return _normalize(normalize_record_field_value(field_type, item.get("value_json")))
 
 
 def build_version_diff(from_version: RecordVersion, to_version: RecordVersion) -> list[dict[str, Any]]:
@@ -65,7 +73,7 @@ def build_version_diff(from_version: RecordVersion, to_version: RecordVersion) -
                     "label": label,
                     "change_type": "added",
                     "before": None,
-                    "after": after_item.get("value_json") if after_item else None,
+                    "after": _normalize_record_value(after_item),
                 }
             )
             continue
@@ -76,22 +84,24 @@ def build_version_diff(from_version: RecordVersion, to_version: RecordVersion) -
                     "key": f"{section_key}.{key}",
                     "label": label,
                     "change_type": "removed",
-                    "before": before_item.get("value_json"),
+                    "before": _normalize_record_value(before_item),
                     "after": None,
                 }
             )
             continue
         before = before_item.get("value_json")
         after = after_item.get("value_json")
-        if _normalize(before) != _normalize(after):
+        normalized_before = _normalize_record_value(before_item)
+        normalized_after = _normalize_record_value(after_item)
+        if normalized_before != normalized_after:
             items.append(
                 {
                     "group": "value",
                     "key": f"{section_key}.{key}",
                     "label": label,
                     "change_type": "updated",
-                    "before": before,
-                    "after": after,
+                    "before": normalized_before if before is not None else before,
+                    "after": normalized_after if after is not None else after,
                 }
             )
 

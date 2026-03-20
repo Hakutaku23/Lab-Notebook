@@ -3,7 +3,12 @@ import { computed } from "vue";
 
 import ChemicalStructurePreview from "./ChemicalStructurePreview.vue";
 import type { TemplateField } from "../types/api";
-import { toPrettyJson } from "../utils/templateRuntime";
+import {
+  getChemicalEquationDisplayText,
+  getChemicalEquationPreviewSource,
+  normalizeChemicalEquationValue,
+  toPrettyJson,
+} from "../utils/templateRuntime";
 
 interface Props {
   field: TemplateField;
@@ -19,30 +24,7 @@ const normalizedText = computed(() => {
 });
 
 const chemicalValue = computed(() => {
-  if (typeof props.value === "string") {
-    const trimmed = props.value.trim();
-    if (!trimmed) return null;
-    return {
-      kind: "molecule",
-      smiles: "",
-      molfile: "",
-      rxnfile: "",
-      ket: "",
-      svg: "",
-      plain_text: trimmed,
-    };
-  }
-
-  if (!props.value || typeof props.value !== "object") return null;
-  return props.value as {
-    kind?: string;
-    smiles?: string;
-    molfile?: string;
-    rxnfile?: string;
-    ket?: string;
-    svg?: string;
-    plain_text?: string;
-  };
+  return normalizeChemicalEquationValue(props.value);
 });
 
 const chemicalKindLabel = computed(() => {
@@ -52,20 +34,10 @@ const chemicalKindLabel = computed(() => {
 });
 
 const chemicalPreviewSource = computed(() => {
-  const value = chemicalValue.value;
-  if (!value) return "";
-
-  if (value.rxnfile?.trim()) return value.rxnfile.trim();
-  if (value.molfile?.trim()) return value.molfile.trim();
-  if (value.ket?.trim()) return value.ket.trim();
-
-  const plainText = value.plain_text?.trim() || "";
-  if (plainText.includes("M  END") || plainText.startsWith("$RXN") || plainText.startsWith("{")) {
-    return plainText;
-  }
-
-  return "";
+  return getChemicalEquationPreviewSource(chemicalValue.value);
 });
+
+const chemicalDisplayText = computed(() => getChemicalEquationDisplayText(chemicalValue.value));
 
 const reactionSteps = computed(() => {
   if (!Array.isArray(props.value)) return [];
@@ -87,9 +59,9 @@ const reactionSteps = computed(() => {
       <div v-if="chemicalValue?.molfile"><strong>Molfile：</strong>已保存</div>
     </div>
     <pre
-      v-if="chemicalValue?.plain_text && !chemicalValue?.svg && !chemicalPreviewSource"
+      v-if="chemicalDisplayText && !chemicalValue?.svg && !chemicalPreviewSource"
       class="detail-value"
-    >{{ chemicalValue.plain_text }}</pre>
+    >{{ chemicalDisplayText }}</pre>
     <p v-else-if="!chemicalValue" class="muted">无</p>
   </div>
 

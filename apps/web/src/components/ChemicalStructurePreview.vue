@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import type { Root } from "react-dom/client";
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 
