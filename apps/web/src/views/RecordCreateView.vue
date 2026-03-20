@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 
 import DynamicTemplateForm from "../components/DynamicTemplateForm.vue";
 import RecordAISummaryPanel from "../components/RecordAISummaryPanel.vue";
+import RecordAIQualityPanel from "../components/RecordAIQualityPanel.vue";
 import { fetchProjects } from "../api/projects";
 import { createRecord } from "../api/records";
 import { fetchTemplateByKey, fetchTemplateDetail, fetchTemplates } from "../api/templates";
@@ -13,6 +14,7 @@ import type {
   ExperimentTemplateSummary,
   ProjectItem,
 } from "../types/api";
+import { buildRecordQualityContext, buildRecordSectionsContext } from "../utils/recordAI";
 import { getRecordStatusLabel } from "../utils/record-status";
 import { buildRecordPayloadValues, initializeFieldValues } from "../utils/templateRuntime";
 
@@ -39,28 +41,6 @@ const form = reactive({
   created_by: "",
 });
 
-watchEffect(() => {
-  aiStore.setAssistantContext({
-    title: "记录 AI 助手",
-    description: "围绕当前新建记录的摘要与字段内容提问。",
-    placeholder: "例如：请根据当前表单内容帮我整理一段更专业的实验说明。",
-    task: "assistant",
-    context: {
-      page: "record-create",
-      title: form.title,
-      project_id: form.project_id,
-      template_name: selectedTemplate.value?.name || "",
-      template_key: selectedTemplate.value?.key || "",
-      current_summary: form.summary,
-      field_values: fieldValues.value,
-    },
-  });
-});
-
-onBeforeUnmount(() => {
-  aiStore.resetAssistantContext();
-});
-
 const aiContext = ref<Record<string, unknown>>({});
 watchEffect(() => {
   aiContext.value = {
@@ -70,8 +50,20 @@ watchEffect(() => {
     template_name: selectedTemplate.value?.name || "",
     template_key: selectedTemplate.value?.key || "",
     current_summary: form.summary,
-    field_values: fieldValues.value,
+    sections: buildRecordSectionsContext(selectedTemplate.value, fieldValues.value),
   };
+
+  aiStore.setAssistantContext({
+    title: "记录 AI 助手",
+    description: "围绕当前新建记录的摘要、字段补全和提交前检查发起提问。",
+    placeholder: "例如：请根据当前表单内容补全还缺的实验信息，并给出更专业的摘要建议。",
+    task: "assistant",
+    context: aiContext.value,
+  });
+});
+
+onBeforeUnmount(() => {
+  aiStore.resetAssistantContext();
 });
 
 async function loadTemplate(templateId: string) {
@@ -156,7 +148,9 @@ async function loadPageData() {
 }
 
 function openAssistant() {
-  aiStore.openAssistant();
+  aiStore.openAssistant({
+    prompt: "请结合当前记录标题、摘要和已填写字段，帮我补全缺失的实验信息，并给出提交前自检建议。",
+  });
 }
 
 async function submitRecord() {
@@ -226,7 +220,7 @@ onMounted(loadPageData);
       <div class="section-header">
         <div>
           <h3>记录表单</h3>
-          <p class="muted">表单内容由模板动态生成。</p>
+          <p class="muted">表单内容由模板动态生成，并支持字段级 AI 辅助与提交前质检。</p>
         </div>
       </div>
 
@@ -283,7 +277,26 @@ onMounted(loadPageData);
 
         <RecordAISummaryPanel v-model:summary="form.summary" :context="aiContext" />
 
-        <DynamicTemplateForm v-model="fieldValues" :template="selectedTemplate" />
+        <RecordAIQualityPanel
+          :context="buildRecordQualityContext({
+            template: selectedTemplate,
+            page: 'record-create',
+            recordTitle: form.title,
+            summary: form.summary,
+            projectId: form.project_id,
+            fieldValues,
+          })"
+        />
+
+        <DynamicTemplateForm
+          v-model="fieldValues"
+          :template="selectedTemplate"
+          ai-enabled
+          ai-page="record-create"
+          :ai-record-title="form.title"
+          :ai-summary="form.summary"
+          :ai-project-id="form.project_id"
+        />
 
         <button class="button" :disabled="submitting || !selectedTemplate" @click="submitRecord">
           {{ submitting ? "提交中..." : "创建草稿记录" }}

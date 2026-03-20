@@ -189,6 +189,17 @@ class OpenAICompatibleLLMService(LLMService):
             return "你是实验记录系统的科研写作助手，请用中文生成简洁、准确、可直接粘贴到记录摘要中的实验总结。"
         if task_name == "record_polish":
             return "你是实验记录系统的科研写作助手，请用中文润色用户已有摘要，保持事实不变、表达更清晰专业。"
+        if task_name == "record_field":
+            return (
+                "你是实验记录系统的字段填写助手。"
+                "请围绕目标字段输出可直接回填的内容，优先参考字段标签、帮助文本、当前摘要、同页其它字段和实验上下文。"
+                "如果字段是 JSON、table 或 file，请直接输出合法 JSON，不要添加 Markdown 代码块。"
+            )
+        if task_name == "record_quality":
+            return (
+                "你是实验记录系统的记录质检助手。"
+                "请从完整性、风险点、一致性和审核可读性角度进行检查，输出中文结论，并尽量使用条目化建议。"
+            )
         return "你是实验记录系统内置的 AI 助手，请用中文提供清晰、直接、可执行的回答。"
 
     def _send_chat_completion(self, task: str, prompt: str, context: dict[str, Any] | None) -> dict[str, Any]:

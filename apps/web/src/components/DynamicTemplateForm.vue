@@ -2,14 +2,23 @@
 import { computed } from "vue";
 
 import type { ExperimentTemplateDetail, TemplateField } from "../types/api";
+import { buildRecordFieldAIContext } from "../utils/recordAI";
 import KetcherField from "./KetcherField.vue";
 import ReactionProcessField from "./ReactionProcessField.vue";
+import RecordFieldAIComposer from "./RecordFieldAIComposer.vue";
 import { getFieldDefaultValue, toPrettyJson } from "../utils/templateRuntime";
 
 interface Props {
   modelValue: Record<string, unknown>;
   template: ExperimentTemplateDetail | null;
   disabled?: boolean;
+  aiEnabled?: boolean;
+  aiPage?: string;
+  aiRecordId?: string;
+  aiRecordTitle?: string;
+  aiRecordStatus?: string;
+  aiSummary?: string;
+  aiProjectId?: string;
 }
 
 const props = defineProps<Props>();
@@ -64,6 +73,29 @@ function optionsForField(field: TemplateField): Array<{ label: string; value: st
 function placeholderForField(field: TemplateField): string {
   return field.placeholder || `请输入 ${field.label}`;
 }
+
+function supportsFieldAI(field: TemplateField): boolean {
+  return ["text", "richtext", "textarea", "number", "json", "table", "checkbox", "select", "date", "file"].includes(
+    field.field_type,
+  );
+}
+
+function buildFieldContext(field: TemplateField) {
+  return buildRecordFieldAIContext({
+    template: props.template,
+    field,
+    fieldValue: fieldValue(field),
+    page: props.aiPage || "record-form",
+    recordId: props.aiRecordId,
+    recordTitle: props.aiRecordTitle,
+    recordStatus: props.aiRecordStatus,
+    summary: props.aiSummary,
+    projectId: props.aiProjectId,
+    templateName: props.template?.name,
+    templateKey: props.template?.key,
+    allFieldValues: props.modelValue,
+  });
+}
 </script>
 
 <template>
@@ -76,7 +108,7 @@ function placeholderForField(field: TemplateField): string {
         </div>
       </div>
 
-      <div v-for="field in section.fields" :key="field.id" class="form-item">
+      <div v-for="field in section.fields" :key="field.id" class="form-item dynamic-template-form__field-item">
         <label class="label">
           {{ field.label }}
           <span v-if="field.required" style="color: #dc2626;">*</span>
@@ -179,6 +211,15 @@ function placeholderForField(field: TemplateField): string {
           :placeholder="placeholderForField(field)"
           @input="updateFieldValue(field.id, ($event.target as HTMLInputElement).value)"
         />
+
+        <RecordFieldAIComposer
+          v-if="aiEnabled && supportsFieldAI(field)"
+          :field="field"
+          :field-value="fieldValue(field)"
+          :context="buildFieldContext(field)"
+          :disabled="disabled"
+          @apply="updateFieldValue(field.id, $event)"
+        />
       </div>
     </section>
   </div>
@@ -194,6 +235,11 @@ function placeholderForField(field: TemplateField): string {
 .dynamic-template-form__section {
   display: grid;
   gap: 14px;
+}
+
+.dynamic-template-form__field-item {
+  display: grid;
+  gap: 10px;
 }
 
 .dynamic-template-form--disabled {

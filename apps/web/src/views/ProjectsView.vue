@@ -1,9 +1,12 @@
 ﻿<script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onBeforeUnmount, onMounted, reactive, ref, watchEffect } from "vue";
 import { RouterLink } from "vue-router";
 
 import { createProject, deleteProject, fetchProjects } from "../api/projects";
+import { useAIStore } from "../stores/ai";
 import type { ProjectItem } from "../types/api";
+
+const aiStore = useAIStore();
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -70,6 +73,41 @@ async function removeProject(projectId: string) {
   }
 }
 
+
+watchEffect(() => {
+  aiStore.setAssistantContext({
+    title: "项目 AI 助手",
+    description: "结合当前项目列表和新建表单，辅助梳理项目命名、描述和后续记录组织方式。",
+    placeholder: "例如：请根据当前项目信息，帮我优化项目描述，并建议适合的实验记录模板分类。",
+    task: "assistant",
+    context: {
+      page: "projects",
+      draft_project: {
+        name: form.name,
+        code: form.code,
+        description: form.description,
+        owner_id: form.owner_id,
+      },
+      projects: projects.value.map((project) => ({
+        id: project.id,
+        name: project.name,
+        code: project.code || "",
+        description: project.description || "",
+      })),
+    },
+  });
+});
+
+onBeforeUnmount(() => {
+  aiStore.resetAssistantContext();
+});
+
+function openAssistant() {
+  aiStore.openAssistant({
+    prompt: "请根据当前项目列表和我正在填写的项目信息，给出命名、描述和后续实验记录组织建议。",
+  });
+}
+
 onMounted(loadProjects);
 </script>
 
@@ -81,7 +119,20 @@ onMounted(loadProjects);
         <h2>项目工作台</h2>
         <p class="muted">先建立项目，再基于项目组织实验记录和模板使用范围。</p>
       </div>
-      <RouterLink class="button" to="/records/new">新建实验记录</RouterLink>
+      <div class="actions">
+        <button class="button secondary" type="button" @click="openAssistant">AI 助手</button>
+        <RouterLink class="button" to="/records/new">新建实验记录</RouterLink>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-header">
+        <div>
+          <h3>AI 规划入口</h3>
+          <p class="muted">可让 AI 帮你梳理项目命名、项目描述，以及应该优先配套哪些实验记录模板。</p>
+        </div>
+        <button class="button secondary" type="button" @click="openAssistant">立即提问</button>
+      </div>
     </section>
 
     <section class="card">
