@@ -1,6 +1,6 @@
 ﻿<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from "vue";
-import { RouterLink, useRoute } from "vue-router";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 
 import AttachmentManager from "../components/AttachmentManager.vue";
 import AuditLogPanel from "../components/AuditLogPanel.vue";
@@ -22,6 +22,7 @@ import { getRecordStatusLabel } from "../utils/record-status";
 import { mapRecordValues } from "../utils/templateRuntime";
 
 const route = useRoute();
+const router = useRouter();
 const aiStore = useAIStore();
 
 const loading = ref(false);
@@ -91,6 +92,16 @@ function openAssistant() {
   aiStore.openAssistant({
     prompt: "请结合当前记录详情，帮我做一次审核前质检，指出风险点、缺失说明和建议的审核意见。",
   });
+}
+
+
+async function handleWorkflowChanged(updated: ExperimentRecordDetail) {
+  record.value = updated;
+  if (updated.status === "draft") {
+    await router.push(`/records/${updated.id}/edit`);
+    return;
+  }
+  await loadRecord();
 }
 
 function printRecord() {
@@ -180,7 +191,7 @@ onMounted(loadRecord);
         :editable="false"
       />
 
-      <RecordWorkflowPanel class="print-hidden" :record="record" @changed="loadRecord" />
+      <RecordWorkflowPanel class="print-hidden" :record="record" @changed="handleWorkflowChanged" />
 
       <section v-for="section in template.sections" :key="section.id" class="card detail-section">
         <div class="section-header">
@@ -196,7 +207,7 @@ onMounted(loadRecord);
         </div>
       </section>
 
-      <AttachmentManager class="print-hidden" :record-id="record.id" @changed="loadRecord" />
+      <AttachmentManager class="print-hidden" :record-id="record.id" :disabled="!isEditable" @changed="loadRecord" />
       <RecordVersionsPanel class="print-hidden" :record-id="record.id" @restored="loadRecord" />
       <AuditLogPanel
         class="print-hidden"
