@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref, watchEffect } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watchEffect } from "vue";
 
 import TemplateAIGeneratorPanel from "../components/TemplateAIGeneratorPanel.vue";
 import {
@@ -48,6 +48,7 @@ const form = reactive({
 });
 
 const sectionsText = ref("[]");
+const generatorSectionRef = ref<HTMLElement | null>(null);
 
 watchEffect(() => {
   aiStore.setAssistantContext({
@@ -186,6 +187,18 @@ function openAssistant() {
   aiStore.openAssistant();
 }
 
+async function focusGenerator() {
+  await nextTick();
+  generatorSectionRef.value?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function openGeneratorAssistant() {
+  aiStore.openAssistant({
+    prompt: "请根据当前模板名称、说明和已有 sections JSON，给我一版更完整的模板结构建议。",
+  });
+  void focusGenerator();
+}
+
 async function saveCurrentTemplate() {
   error.value = "";
   success.value = "";
@@ -320,6 +333,7 @@ onMounted(async () => {
       </div>
       <div class="actions">
         <button class="button secondary" type="button" @click="openAssistant">AI 助手</button>
+        <button class="button secondary" type="button" @click="openGeneratorAssistant">AI 辅助生成</button>
         <button class="button secondary" type="button" @click="loadTemplatesList">刷新</button>
         <button class="button" type="button" @click="resetForm">新建模板</button>
       </div>
@@ -407,14 +421,24 @@ onMounted(async () => {
           </p>
         </div>
 
-        <TemplateAIGeneratorPanel
-          :template-name="form.name"
-          :template-key="form.key"
-          :category="form.category"
-          :description-text="form.description"
-          :sections-text="sectionsText"
-          @apply="applyGeneratedSections"
-        />
+        <section ref="generatorSectionRef" class="template-ai-generator-section">
+          <div class="section-header">
+            <div>
+              <h3>AI 辅助生成</h3>
+              <p class="muted">可基于当前模板名称、分类、说明和已有 Sections JSON，快速生成可直接应用的新结构。</p>
+            </div>
+            <button class="button secondary" type="button" @click="openGeneratorAssistant">在 AI 助手中继续讨论</button>
+          </div>
+
+          <TemplateAIGeneratorPanel
+            :template-name="form.name"
+            :template-key="form.key"
+            :category="form.category"
+            :description-text="form.description"
+            :sections-text="sectionsText"
+            @apply="applyGeneratedSections"
+          />
+        </section>
 
         <div class="form-item">
           <label class="label">Sections JSON</label>
@@ -516,6 +540,11 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.template-ai-generator-section {
+  display: grid;
+  gap: 16px;
 }
 
 .code-area {

@@ -1,16 +1,19 @@
 ﻿<script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watchEffect } from "vue";
 import { RouterLink } from "vue-router";
 
 import { fetchProjects } from "../api/projects";
 import { deleteRecord, fetchRecords } from "../api/records";
 import { fetchTemplates } from "../api/templates";
+import { useAIStore } from "../stores/ai";
 import type {
   ExperimentRecordSummary,
   ExperimentTemplateSummary,
   ProjectItem,
 } from "../types/api";
 import { getRecordStatusLabel } from "../utils/record-status";
+
+const aiStore = useAIStore();
 
 const loading = ref(false);
 const error = ref("");
@@ -81,6 +84,39 @@ async function removeRecord(recordId: string) {
   }
 }
 
+
+watchEffect(() => {
+  aiStore.setAssistantContext({
+    title: "记录列表 AI 助手",
+    description: "结合当前筛选条件和检索结果，帮助你定位记录、归纳异常和制定下一步处理动作。",
+    placeholder: "例如：请根据当前筛选结果，帮我总结哪些记录最值得优先复核。",
+    task: "assistant",
+    context: {
+      page: "records",
+      filters: { ...filters },
+      results: records.value.map((record) => ({
+        id: record.id,
+        title: record.title,
+        status: record.status,
+        summary: record.summary || "",
+        project_name: record.project_name || record.project_id,
+        template_name: record.template_name || record.template_id,
+        updated_at: record.updated_at,
+      })),
+    },
+  });
+});
+
+onBeforeUnmount(() => {
+  aiStore.resetAssistantContext();
+});
+
+function openAssistant() {
+  aiStore.openAssistant({
+    prompt: "请结合当前筛选条件和检索结果，帮我总结应优先关注的实验记录，并给出后续处理建议。",
+  });
+}
+
 onMounted(async () => {
   try {
     await loadOptions();
@@ -101,8 +137,19 @@ onMounted(async () => {
         <p class="muted">按关键词、项目、模板和状态筛选记录，快速进入详情、审核与打印流程。</p>
       </div>
       <div class="actions">
+        <button class="button secondary" type="button" @click="openAssistant">AI 助手</button>
         <RouterLink class="button secondary" to="/projects">返回项目</RouterLink>
         <RouterLink class="button" to="/records/new">新建实验记录</RouterLink>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-header">
+        <div>
+          <h3>AI 检索入口</h3>
+          <p class="muted">在当前检索页直接调用 AI，可结合筛选条件、记录摘要与状态，帮助你快速判断下一步操作。</p>
+        </div>
+        <button class="button secondary" type="button" @click="openAssistant">让 AI 分析当前结果</button>
       </div>
     </section>
 
